@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BATTLE CITY — Поддержать проект</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0a;color:#e8e8e8;font-family:"Courier New",monospace;padding:24px 16px;line-height:1.6}
+.wrap{max-width:760px;margin:0 auto}
+h1{color:#C09848;letter-spacing:3px;font-size:26px;margin-bottom:4px}
+h2{color:#C09848;font-size:16px;margin:22px 0 8px;letter-spacing:1px}
+.sub{color:#777;font-size:13px;margin-bottom:18px}
+.warn{border:1px solid #8a6a20;background:#1a1200;color:#e0b040;padding:12px;margin:16px 0;font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.card{border:1px solid #333;background:#111;padding:12px}
+.card:hover{border-color:#C09848}
+.coins{color:#f0c020;font-size:18px}
+.usd{color:#70B050;font-size:15px}
+.bonus{color:#5da0f0;font-size:12px}
+.desc{color:#999;font-size:12px}
+.btn{display:inline-block;margin-top:10px;padding:6px 14px;border:1px solid #70B050;color:#70B050;
+  text-decoration:none;font-size:13px;cursor:pointer}
+.btn:hover{background:#0f2a0f}
+footer{margin-top:30px;border-top:1px solid #262626;padding-top:12px;color:#666;font-size:12px}
+code{background:#181818;padding:1px 5px;color:#8fd08f}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>BATTLE CITY</h1>
+  <div class="sub">Страница поддержки проекта — заглушка (<code>https://tankgame.com/donate</code>)</div>
+
+  <div class="warn">
+    <b>ВНИМАНИЕ: ЭТО ДЕМОНСТРАЦИОННАЯ СТРАНИЦА.</b><br>
+    Приём реальных платежей НЕ подключён. Здесь нет форм ввода карт и не собираются платёжные данные.
+    Чтобы включить оплату, подключите свой аккаунт Stripe / PayPal / ЮKassa и бэкенд —
+    инструкция в <code>README.md</code>, раздел «Платежи».
+  </div>
+
+  <h2>ПАКЕТЫ МОНЕТ</h2>
+  <div class="grid" id="packs"></div>
+
+  <h2>ПРЕМИУМ-ПОДПИСКИ</h2>
+  <div class="grid" id="subs"></div>
+
+  <h2>КАК ЭТО РАБОТАЕТ В БОЕВОМ РЕЖИМЕ</h2>
+  <p class="desc">
+    1. Игрок нажимает «Купить» → фронтенд обращается к вашему бэкенду <code>POST /api/checkout</code>.<br>
+    2. Бэкенд создаёт Stripe Checkout Session (или платёж ЮKassa) и возвращает ссылку.<br>
+    3. Игрок оплачивает на стороне провайдера — карта вводится только там.<br>
+    4. Провайдер вызывает ваш <code>POST /api/webhook</code>; сервер проверяет подпись и начисляет монеты в БД.<br>
+    5. Игра забирает актуальный баланс из Firestore при следующей синхронизации.
+  </p>
+
+  <footer>
+    <a class="btn" href="index.html">← ВЕРНУТЬСЯ В ИГРУ</a><br><br>
+    Оплата никогда не должна начисляться на клиенте — только по webhook от провайдера.
+  </footer>
+</div>
+<script>
+// Те же пакеты, что и в игре (держите значения синхронными с CFG в index.html)
+const PACKS=[{c:1000,b:0,u:1.99},{c:2500,b:.10,u:4.99},{c:6000,b:.15,u:9.99},
+             {c:15000,b:.25,u:19.99},{c:40000,b:.35,u:49.99}];
+const SUBS=[{n:"ПАТРОН",u:9.99,d:"+50% монет, эксклюзивный скин, без рекламы"},
+            {n:"СПОНСОР",u:19.99,d:"+100% монет, 2 эксклюзивных скина, выбор карты"},
+            {n:"ЛЕГЕНДА",u:49.99,d:"Все скины бесплатно, Зал Славы, уникальный аватар"}];
+const fmt=n=>String(n).replace(/\B(?=(\d{3})+(?!\d))/g," ");
+document.getElementById("packs").innerHTML=PACKS.map(p=>{
+  const t=p.c+Math.round(p.c*p.b);
+  return `<div class="card"><div class="coins">🪙 ${fmt(t)}</div>
+    ${p.b?`<div class="bonus">+${Math.round(p.b*100)}% бонус</div>`:'<div class="bonus">&nbsp;</div>'}
+    <div class="usd">$${p.u.toFixed(2)}</div>
+    <div class="btn" onclick="stub()">КУПИТЬ</div></div>`;}).join("");
+document.getElementById("subs").innerHTML=SUBS.map(s=>
+  `<div class="card"><div class="coins">${s.n}</div><div class="desc">${s.d}</div>
+   <div class="usd">$${s.u.toFixed(2)}/мес</div><div class="btn" onclick="stub()">ОФОРМИТЬ</div></div>`).join("");
+function stub(){ alert("Демо-страница: приём платежей не подключён.\n\nПодключите Stripe/PayPal/ЮKassa и бэкенд по инструкции из README.md."); }
+</script>
+</body>
+</html>
