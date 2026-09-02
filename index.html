@@ -1,0 +1,2820 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>BATTLE CITY — Танчики 1990</title>
+<style>
+/* ================== ОБЩИЕ СТИЛИ (ретро-стилизация NES) ================== */
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;background:#000;overflow:hidden;
+  font-family:"Courier New",Courier,monospace;color:#e8e8e8;user-select:none}
+/* Сцена фиксированного размера 544x448 — масштабируется целочисленно под экран */
+#stage{position:absolute;left:50%;top:50%;width:544px;height:448px;
+  transform-origin:center center;background:#000;overflow:hidden}
+canvas{display:block;image-rendering:pixelated;image-rendering:-moz-crisp-edges;
+  image-rendering:crisp-edges}
+#game{position:absolute;left:0;top:0}
+/* ---------- Оверлеи меню ---------- */
+.overlay{position:absolute;left:0;top:0;width:544px;height:448px;display:none;
+  flex-direction:column;background:#000;padding:10px 14px;font-size:11px;line-height:1.45}
+.overlay.on{display:flex}
+.ttl{color:#C09848;font-size:14px;letter-spacing:2px;margin-bottom:6px;flex:none}
+.sub{color:#7d7d7d;font-size:9px;margin-bottom:6px;flex:none}
+.list{flex:1;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;
+  scrollbar-color:#404040 #000}
+.list::-webkit-scrollbar{width:6px}
+.list::-webkit-scrollbar-thumb{background:#404040}
+.row{display:flex;align-items:center;gap:6px;padding:2px 4px;white-space:nowrap}
+.row.sel{background:#1a1a1a;outline:1px solid #C09848}
+.row .cur{width:10px;color:#C09848}
+.row.sel .cur::after{content:"\25BA"}
+.blink{animation:bl .5s steps(1,end) infinite}
+@keyframes bl{50%{opacity:0}}
+.name{flex:1;overflow:hidden;text-overflow:ellipsis}
+.tag{font-size:9px;padding:0 4px;border:1px solid #444;color:#9a9a9a}
+.tag.own{border-color:#70B050;color:#70B050}
+.tag.eq{border-color:#5da0f0;color:#5da0f0}
+.tag.lock{border-color:#8a3030;color:#c05050}
+.price{color:#f0c020}
+.hint{flex:none;color:#6a6a6a;font-size:9px;border-top:1px solid #262626;
+  padding-top:5px;margin-top:5px}
+.gold{color:#f0c020}.grn{color:#70B050}.red{color:#d05050}.blu{color:#5da0f0}
+.gray{color:#777}.wht{color:#fff}
+.cols{display:flex;gap:10px;flex:1;min-height:0}
+.tabs{display:flex;gap:4px;flex:none;margin-bottom:5px;flex-wrap:wrap}
+.tab{padding:1px 6px;border:1px solid #333;font-size:9px;color:#888}
+.tab.on{border-color:#C09848;color:#C09848;background:#1a1400}
+/* ---------- Редактор уровней ---------- */
+#edgrid{display:grid;grid-template-columns:repeat(13,20px);grid-template-rows:repeat(13,20px);
+  gap:1px;background:#222;padding:2px;flex:none}
+#edgrid div{width:20px;height:20px;background:#000;cursor:pointer}
+.pal{display:flex;flex-direction:column;gap:3px;font-size:9px}
+.pal div{padding:2px 5px;border:1px solid #333;cursor:pointer;display:flex;gap:5px;align-items:center}
+.pal div.on{border-color:#C09848;color:#C09848}
+.sw{width:12px;height:12px;display:inline-block;border:1px solid #000}
+/* ---------- Модальное окно (донат / инфо) ---------- */
+#modal{position:absolute;left:0;top:0;width:544px;height:448px;display:none;
+  align-items:center;justify-content:center;background:rgba(0,0,0,.86);z-index:20}
+#modal.on{display:flex}
+.mbox{width:430px;max-height:390px;overflow:auto;border:2px solid #C09848;background:#0b0b0b;
+  padding:12px;font-size:10px;line-height:1.5}
+.mbox h3{color:#C09848;font-size:12px;margin-bottom:6px;letter-spacing:1px}
+.btn{display:inline-block;margin-top:8px;padding:3px 10px;border:1px solid #70B050;
+  color:#70B050;cursor:pointer;font-size:10px}
+.btn:hover{background:#0f2a0f}
+.warn{border:1px solid #8a6a20;background:#1a1200;color:#e0b040;padding:6px;margin:6px 0;font-size:9px}
+/* ---------- Мобильное управление ---------- */
+#touch{position:fixed;left:0;top:0;width:100%;height:100%;display:none;z-index:30;
+  pointer-events:none}
+#touch.on{display:block}
+#stickBase{position:absolute;left:20px;bottom:24px;width:130px;height:130px;border-radius:50%;
+  border:2px solid #333;background:rgba(255,255,255,.05);pointer-events:auto}
+#stickKnob{position:absolute;left:40px;top:40px;width:50px;height:50px;border-radius:50%;
+  background:rgba(192,152,72,.55);border:2px solid #C09848}
+#btnFire{position:absolute;right:24px;bottom:40px;width:92px;height:92px;border-radius:50%;
+  border:2px solid #d05050;background:rgba(208,80,80,.25);color:#ff9090;pointer-events:auto;
+  display:flex;align-items:center;justify-content:center;font-size:13px;letter-spacing:1px}
+#btnPause{position:absolute;right:24px;top:16px;width:52px;height:34px;border:2px solid #555;
+  background:rgba(255,255,255,.06);color:#bbb;pointer-events:auto;display:flex;
+  align-items:center;justify-content:center;font-size:11px}
+#toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:50;
+  display:flex;flex-direction:column;gap:4px;align-items:center;pointer-events:none}
+.tst{background:#101010;border:1px solid #C09848;color:#f0d090;padding:4px 12px;font-size:11px;
+  animation:tin .3s ease-out}
+@keyframes tin{from{opacity:0;transform:translateY(-8px)}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="game" width="544" height="448"></canvas>
+
+  <!-- ===== ГЛАВНОЕ МЕНЮ ===== -->
+  <div class="overlay" id="scr-menu">
+    <canvas id="logo" width="516" height="104" style="margin:4px auto 2px"></canvas>
+    <div class="list" id="menuList"></div>
+    <div class="hint">&uarr;&darr; — выбор &nbsp; ENTER — ок &nbsp; &larr;&rarr; — уровень &nbsp; ESC — назад</div>
+  </div>
+
+  <!-- ===== УНИВЕРСАЛЬНЫЙ СПИСОЧНЫЙ ЭКРАН (магазин, рейтинг, ачивки, статистика, режимы) ===== -->
+  <div class="overlay" id="scr-list">
+    <div class="ttl" id="listTitle">SHOP</div>
+    <div class="tabs" id="listTabs"></div>
+    <div class="sub" id="listSub"></div>
+    <div class="list" id="listBody"></div>
+    <div class="hint" id="listHint">&uarr;&darr; — выбор &nbsp; ENTER — действие &nbsp; TAB — вкладка &nbsp; ESC — назад</div>
+  </div>
+
+  <!-- ===== РЕДАКТОР УРОВНЕЙ ===== -->
+  <div class="overlay" id="scr-editor">
+    <div class="ttl">LEVEL EDITOR</div>
+    <div class="cols">
+      <div id="edgrid"></div>
+      <div class="pal" id="edpal"></div>
+    </div>
+    <div class="hint">ЛКМ — рисовать &nbsp; S — сохранить &nbsp; P — играть &nbsp; C — очистить &nbsp; E — код &nbsp; I — импорт &nbsp; ESC — назад</div>
+  </div>
+
+  <!-- ===== МОДАЛЬНОЕ ОКНО ===== -->
+  <div id="modal"><div class="mbox" id="mbox"></div></div>
+</div>
+
+<!-- ===== СЕНСОРНОЕ УПРАВЛЕНИЕ ===== -->
+<div id="touch">
+  <div id="stickBase"><div id="stickKnob"></div></div>
+  <div id="btnFire">FIRE</div>
+  <div id="btnPause">II</div>
+</div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* =====================================================================================
+   BATTLE CITY (Танчики, Dendy/NES 1990) — расширенная версия
+   Один файл: движок, магазин, монеты, донат-заглушка, БД, онлайн, редактор уровней.
+   Автор кода: сгенерировано для Дениса Павлова.
+   Структура: CONFIG -> Utils -> Font -> Audio -> Palette/Art -> Save/Profile ->
+              Shop -> Achievements -> Levels/Field -> Entities -> Game -> UI -> Online.
+   ===================================================================================== */
+
+/* ============================== 1. КОНФИГУРАЦИЯ ============================== */
+const CFG = {
+  UNIT: 8,             // юнит разрушения = 8 px (4x4 пикселя NES) — как в оригинале
+  UCOLS: 52,           // 52x52 юнита = 13x13 клеток по 32 px
+  TILE: 8,             // синоним UNIT для совместимости
+  CELL: 32,            // размер клетки поля (как в оригинале)
+  FIELD: 416,          // 13*32
+  CW: 544, CH: 448,    // размер холста (поле + правая панель)
+  OX: 16, OY: 16,      // отступ поля на холсте
+  FPS: 60,
+  MAX_ENEMIES_ON_SCREEN: 4,
+  ENEMIES_PER_LEVEL: 20,
+  TOTAL_LEVELS: 35,
+  DONATE_URL: "https://tankgame.com/donate",
+  // Ключи внешних сервисов — ЗАГЛУШКИ. Подставьте свои, чтобы включить онлайн/оплату.
+  FIREBASE: { apiKey: "", authDomain: "", projectId: "", appId: "" },
+  STRIPE_PK: "",                 // pk_live_... / pk_test_...
+  MP_SERVER: "",                 // wss://your-server/ws — WebSocket для мультиплеера
+  PAYMENTS_LIVE: false           // false => все платежи работают в ДЕМО-режиме (без реальных денег)
+};
+
+/* ============================== 2. УТИЛИТЫ ============================== */
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
+const rnd = n => Math.floor(Math.random() * n);
+const pick = a => a[rnd(a.length)];
+const chance = p => Math.random() < p;
+const now = () => Date.now();
+const today = () => new Date().toISOString().slice(0, 10);
+// Пересечение прямоугольников
+const hit = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+// Детерминированный ГПСЧ (для генерации уровней и ежедневных челленджей)
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function seedFromString(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+const fmt = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+const pad = (n, l) => String(n).padStart(l, "0");
+function timeStr(ms) { const s = Math.floor(ms / 1000); return `${Math.floor(s / 3600)}ч ${Math.floor(s % 3600 / 60)}м ${s % 60}с`; }
+
+// Всплывающие уведомления
+function toast(text, color) {
+  const el = document.createElement("div");
+  el.className = "tst"; el.textContent = text;
+  if (color) { el.style.borderColor = color; el.style.color = color; }
+  $("#toast").appendChild(el);
+  setTimeout(() => { el.style.transition = "opacity .4s"; el.style.opacity = 0; setTimeout(() => el.remove(), 400); }, 2200);
+}
+
+/* ============================== 3. ПИКСЕЛЬНЫЙ ШРИФТ 5x7 ============================== */
+const FONT = {
+  "A": "01110/10001/10001/11111/10001/10001/10001", "B": "11110/10001/10001/11110/10001/10001/11110",
+  "C": "01110/10001/10000/10000/10000/10001/01110", "D": "11110/10001/10001/10001/10001/10001/11110",
+  "E": "11111/10000/10000/11110/10000/10000/11111", "F": "11111/10000/10000/11110/10000/10000/10000",
+  "G": "01110/10001/10000/10111/10001/10001/01111", "H": "10001/10001/10001/11111/10001/10001/10001",
+  "I": "11111/00100/00100/00100/00100/00100/11111", "J": "00111/00010/00010/00010/00010/10010/01100",
+  "K": "10001/10010/10100/11000/10100/10010/10001", "L": "10000/10000/10000/10000/10000/10000/11111",
+  "M": "10001/11011/10101/10101/10001/10001/10001", "N": "10001/11001/10101/10011/10001/10001/10001",
+  "O": "01110/10001/10001/10001/10001/10001/01110", "P": "11110/10001/10001/11110/10000/10000/10000",
+  "Q": "01110/10001/10001/10001/10101/10010/01101", "R": "11110/10001/10001/11110/10100/10010/10001",
+  "S": "01111/10000/10000/01110/00001/00001/11110", "T": "11111/00100/00100/00100/00100/00100/00100",
+  "U": "10001/10001/10001/10001/10001/10001/01110", "V": "10001/10001/10001/10001/10001/01010/00100",
+  "W": "10001/10001/10001/10101/10101/11011/01010", "X": "10001/10001/01010/00100/01010/10001/10001",
+  "Y": "10001/10001/01010/00100/00100/00100/00100", "Z": "11111/00001/00010/00100/01000/10000/11111",
+  "0": "01110/10001/10011/10101/11001/10001/01110", "1": "00100/01100/00100/00100/00100/00100/01110",
+  "2": "01110/10001/00001/00010/00100/01000/11111", "3": "11111/00010/00100/00010/00001/10001/01110",
+  "4": "00010/00110/01010/10010/11111/00010/00010", "5": "11111/10000/11110/00001/00001/10001/01110",
+  "6": "00110/01000/10000/11110/10001/10001/01110", "7": "11111/00001/00010/00100/01000/01000/01000",
+  "8": "01110/10001/10001/01110/10001/10001/01110", "9": "01110/10001/10001/01111/00001/00010/01100",
+  " ": "00000/00000/00000/00000/00000/00000/00000", "-": "00000/00000/00000/11111/00000/00000/00000",
+  ".": "00000/00000/00000/00000/00000/01100/01100", ":": "00000/00100/00100/00000/00100/00100/00000",
+  "!": "00100/00100/00100/00100/00100/00000/00100", "?": "01110/10001/00001/00010/00100/00000/00100",
+  "/": "00001/00010/00010/00100/01000/01000/10000", "+": "00000/00100/00100/11111/00100/00100/00000",
+  "%": "11001/11010/00010/00100/01000/01011/10011", "$": "00100/01111/10100/01110/00101/11110/00100",
+  "(": "00010/00100/01000/01000/01000/00100/00010", ")": "01000/00100/00010/00010/00010/00100/01000",
+  "*": "00000/10101/01110/11111/01110/10101/00000", "<": "00010/00100/01000/10000/01000/00100/00010",
+  ">": "01000/00100/00010/00001/00010/00100/01000", ",": "00000/00000/00000/00000/01100/01100/11000",
+  "#": "01010/11111/01010/01010/01010/11111/01010", "=": "00000/00000/11111/00000/11111/00000/00000",
+  "'": "00100/00100/00000/00000/00000/00000/00000", "x": "00000/00000/10001/01010/00100/01010/10001"
+};
+// Кэш разобранных глифов
+const GLYPH = {}; for (const k in FONT) GLYPH[k] = FONT[k].split("/");
+// Отрисовка пиксельного текста
+function text(ctx, str, x, y, scale = 1, color = "#fff") {
+  ctx.fillStyle = color;
+  let cx = x;
+  for (const ch of String(str).toUpperCase()) {
+    const g = GLYPH[ch] || GLYPH["?"];
+    for (let r = 0; r < 7; r++) for (let c = 0; c < 5; c++)
+      if (g[r][c] === "1") ctx.fillRect(cx + c * scale, y + r * scale, scale, scale);
+    cx += 6 * scale;
+  }
+  return cx;
+}
+const textW = (str, scale = 1) => String(str).length * 6 * scale;
+function textC(ctx, str, cx, y, scale, color) { text(ctx, str, cx - textW(str, scale) / 2, y, scale, color); }
+
+/* ============================== 4. ЗВУК — МОДЕЛЬ APU NES ==============================
+   Все звуки синтезируются так же, как их формировала звуковая микросхема Famicom/NES:
+     * мелодии — импульсный канал со скважностью 50% (проверено по гармоникам оригинала:
+       присутствуют только нечётные, h3≈0.33, h5≈0.20 — это чистый меандр);
+     * шумы (выстрел, взрывы, попадания) — канал шума на 15-битном сдвиговом регистре (LFSR)
+       с тактовой частотой, как в NES, поэтому тембр «хрустящий», а не «белый шум».
+   Ноты и длительности мелодий, частоты и огибающие шумов сняты измерением
+   оригинальных звуков игры (спектральный анализ: частоты, центроид, rolloff, огибающая).
+   =================================================================================== */
+const NOTE_IDX = { C: 0, "C#": 1, D: 2, "D#": 3, E: 4, F: 5, "F#": 6, G: 7, "G#": 8, A: 9, "A#": 10, B: 11 };
+function noteFreq(n) {
+  if (typeof n === "number") return n;
+  const m = /^([A-G]#?)(-?\d)$/.exec(n);
+  if (!m) return 440;
+  const midi = (parseInt(m[2]) + 1) * 12 + NOTE_IDX[m[1]];
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+/* Мелодии оригинала. Шаг стартовой темы — 134.5 мс (снят с записи). */
+const TUNE_START_LEAD = ["", "C5", "D5", "D#5", "C5", "D5", "D#5", "D#5", "F5", "G5", "D#5", "F5", "G5",
+  "F5", "G5", "A5", "F5", "G5", "A5", "G#5", "A#5", "C6", "G#5", "A#5", "C6", "C6", "", "", "C6", "C6", "C6", "C6"];
+const TUNE_START_BASS = ["", "C3", "C3", "C3", "C3", "C3", "C#3", "D#3", "D#3", "D#3", "D#3", "D#3", "D#3",
+  "C4", "C4", "C4", "C4", "C4", "C4", "C4", "C4", "C4", "G#3", "G#3", "A#3", "A#3", "", "", "G3", "G3", "G3", "G3"];
+const TUNE_GAMEOVER = [   // {время, нота, длительность}
+  { t: 0.00, n: "G4", d: 0.42 }, { t: 0.62, n: "D#4", d: 0.14 }, { t: 0.78, n: "D4", d: 0.13 },
+  { t: 0.91, n: "D#4", d: 0.15 }, { t: 1.06, n: "C5", d: 0.60 }];
+const TUNE_GAMEOVER_BASS = [{ t: 0.00, n: "G3", d: 0.42 }, { t: 1.06, n: "C4", d: 0.60 }];
+const TUNE_POWERUP_PICK = ["C5", "E5", "G5", "F#4", "B4", "D#5", "F#5", "C5", "E5", "G5", "C6"];
+const TUNE_POWERUP_APPEAR = ["E4", "G4", "A4", "G4", "A4", "B4", "C5"];
+const TUNE_PAUSE = ["C5", "D5", "E5", "C6", "D6", "E6", "G5"];
+
+const Audio_ = {
+  ctx: null, enabled: true, master: null, bufCache: {},
+  engineSrc: null, engineGain: null, engineOn: false,
+  init() {
+    if (this.ctx) return;
+    try {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = 0.30;
+      // Оригинал звучит глуше «сырого» меандра: срез 7500 Гц подобран так, чтобы
+      // спектральный центроид синтеза совпал с центроидом записей игры (2584 против 2586 Гц).
+      this.lp = this.ctx.createBiquadFilter();
+      this.lp.type = "lowpass"; this.lp.frequency.value = 7500; this.lp.Q.value = 0.7071;
+      this.master.connect(this.lp); this.lp.connect(this.ctx.destination);
+    } catch (e) { this.enabled = false; }
+  },
+  resume() { if (this.ctx && this.ctx.state === "suspended") this.ctx.resume(); },
+  ok() { return this.enabled && this.ctx; },
+  t0(when) { return this.ctx.currentTime + (when || 0); },
+
+  /* --- КАНАЛ ШУМА NES: 15-битный LFSR ---------------------------------------
+     Обратная связь: бит0 XOR бит1 (длинный режим) или бит0 XOR бит6 (короткий,
+     «металлический»). Выход — инверсия бита 0. Частота сдвига задаётся таблицей
+     периодов NES; здесь она берётся из измерений оригинальных звуков.          */
+  lfsrBuffer(dur, rate0, rate1, short, variant) {
+    variant = variant || 0;
+    const key = `${dur}|${rate0}|${rate1}|${short ? 1 : 0}|${variant}`;
+    if (this.bufCache[key]) return this.bufCache[key];
+    const sr = this.ctx.sampleRate, len = Math.max(1, Math.ceil(sr * dur));
+    const buf = this.ctx.createBuffer(1, len, sr), d = buf.getChannelData(0);
+    let reg = 1, acc = 0, out = 1;
+    // В NES регистр шума крутится непрерывно, а не сбрасывается на каждый звук.
+    // Начало последовательности от seed=1 статистически смещено (доля единиц 0.66
+    // вместо 0.5) — это давало «постоянку» и одинаковый призвук в начале каждого
+    // выстрела. Прокручиваем регистр вперёд; разные варианты дают разную фазу шума.
+    const warm = 977 + variant * 4093;
+    for (let w = 0; w < warm; w++) {
+      const fb = (reg ^ (reg >> (short ? 6 : 1))) & 1;
+      reg = (reg >> 1) | (fb << 14);
+    }
+    out = (reg & 1) ? -1 : 1;
+    for (let i = 0; i < len; i++) {
+      const rate = rate0 * Math.pow(rate1 / rate0, i / len);
+      acc += rate / sr;
+      while (acc >= 1) {
+        acc -= 1;
+        const fb = (reg ^ (reg >> (short ? 6 : 1))) & 1;
+        reg = (reg >> 1) | (fb << 14);
+        out = (reg & 1) ? -1 : 1;
+      }
+      d[i] = out;
+    }
+    // Убираем постоянную составляющую: короткий отрезок шума неизбежно несимметричен,
+    // а на приставке её срезает разделительный конденсатор на выходе звукового тракта.
+    // Без этого каждый выстрел давал слышимый «щелчок» смещения.
+    let mean = 0;
+    for (let i = 0; i < len; i++) mean += d[i];
+    mean /= len;
+    for (let i = 0; i < len; i++) d[i] -= mean;
+    this.bufCache[key] = buf;
+    return buf;
+  },
+  // Шумовой звук с огибающей env = [[доляВремени, громкость], ...]
+  noiseFX(dur, rate0, rate1, vol, env, when, short) {
+    if (!this.ok()) return;
+    const t = this.t0(when);
+    const src = this.ctx.createBufferSource();
+    // Три варианта фазы шума, чтобы подряд идущие выстрелы не звучали одинаково
+    src.buffer = this.lfsrBuffer(dur, rate0, rate1 || rate0, short, rnd(3));
+    const g = this.ctx.createGain();
+    const e = env || [[0, 1], [1, 0.6]];
+    g.gain.setValueAtTime(vol * e[0][1], t);
+    for (let i = 1; i < e.length; i++) g.gain.linearRampToValueAtTime(Math.max(0.0001, vol * e[i][1]), t + dur * e[i][0]);
+    g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    src.connect(g); g.connect(this.master); src.start(t); src.stop(t + dur + 0.02);
+  },
+  /* --- ИМПУЛЬСНЫЙ КАНАЛ (меандр 50%, как в мелодиях оригинала) --- */
+  pulse(freq, dur, vol, when, slideTo) {
+    if (!this.ok()) return;
+    const t = this.t0(when), o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = "square"; o.frequency.setValueAtTime(noteFreq(freq), t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, noteFreq(slideTo)), t + dur);
+    // Ступенчатая огибающая APU: держим уровень, затем резкий спад
+    g.gain.setValueAtTime(vol, t);
+    g.gain.setValueAtTime(vol, t + dur * 0.82);
+    g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t + dur + 0.02);
+  },
+  // Проигрывание мелодии по сетке
+  seqGrid(notes, step, vol, when, gate) {
+    notes.forEach((n, i) => { if (n) this.pulse(n, step * (gate || 0.95), vol, (when || 0) + i * step); });
+  },
+  seqTimed(notes, vol, when) {
+    notes.forEach(o => this.pulse(o.n, o.d, vol, (when || 0) + o.t));
+  },
+  // Совместимость со старым API
+  tone(freq, dur, type, vol, slideTo) { this.pulse(freq, dur, vol != null ? vol : 0.3, 0, slideTo); },
+  noise(dur, vol) { this.noiseFX(dur || 0.3, 5000, 4200, vol != null ? vol : 0.5); },
+
+  /* ======================= ЗВУКИ ОРИГИНАЛА =======================
+     Частоты сдвига LFSR и длительности подобраны так, чтобы спектральный центроид
+     и rolloff85 совпали с измеренными у оригинальных звуков игры (расхождение 1–9%). */
+  // Выстрел: 99 мс, шум с падающей яркостью (центроид 2466 -> 1673 Гц)
+  shoot() { this.noiseFX(0.10, 4800, 3600, 0.45, [[0, 1], [0.5, 0.85], [1, 0.75]]); },
+  shootEnemy() { this.noiseFX(0.10, 4800, 3600, 0.20, [[0, 1], [0.5, 0.85], [1, 0.75]]); },
+  // Попадание в кирпич: тихий короткий щелчок, ярче выстрела (центроид ~3100-3700 Гц)
+  hitBrick() { this.noiseFX(0.085, 13400, 15000, 0.16, [[0, 0.2], [0.15, 1], [1, 0.9]]); },
+  // Попадание в сталь/границу поля: ниже и громче (центроид ~1100-2000 Гц)
+  hitSteel() { this.noiseFX(0.073, 1400, 1100, 0.42, [[0, 1], [0.5, 0.7], [0.85, 1], [1, 0.9]]); },
+  hitWall() { this.hitBrick(); },
+  // Взрывы: 298 мс (враг) и 510 мс (игрок/база)
+  explode(big) {
+    big ? this.noiseFX(0.51, 3800, 3120, 0.55, [[0, 1], [0.25, 0.9], [0.6, 0.7], [1, 0.55]])
+      : this.noiseFX(0.30, 3800, 3740, 0.50, [[0, 1], [0.4, 0.95], [1, 0.7]]);
+  },
+  // Появление бонуса и его подбор
+  bonusAppear() { this.seqGrid(TUNE_POWERUP_APPEAR, 0.066, 0.26); },
+  bonus() { this.seqGrid(TUNE_POWERUP_PICK, 0.05, 0.28, 0, 1.0); },
+  coin() { this.pulse("C6", 0.05, 0.22); this.pulse("G6", 0.07, 0.22, 0.05); },
+  // Стартовая тема игры (4.3 с): мелодия + бас, два импульсных канала
+  stageStart() {
+    const step = 0.1345;
+    this.seqGrid(TUNE_START_LEAD, step, 0.26, 0, 0.92);
+    this.seqGrid(TUNE_START_BASS, step, 0.15, 0, 0.55);
+  },
+  start() { this.pulse("C5", 0.05, 0.2); this.pulse("G5", 0.07, 0.2, 0.06); },   // короткий сигнал старта уровня
+  // GAME OVER
+  lose() { this.seqTimed(TUNE_GAMEOVER, 0.28); this.seqTimed(TUNE_GAMEOVER_BASS, 0.16); },
+  gameOverTune() { this.lose(); },
+  // Пауза
+  pauseSfx() { this.seqGrid(TUNE_PAUSE, 0.062, 0.26); },
+  // Тик подсчёта очков на экране статистики (41 мс, яркий шум с быстрым спадом)
+  tick() { this.noiseFX(0.041, 13200, 22000, 0.30, [[0, 1], [0.4, 0.5], [1, 0.15]]); },
+  // Победа/зачёт уровня — серия тиков подсчёта плюс аккорд
+  win() {
+    for (let i = 0; i < 10; i++) setTimeout(() => this.tick(), i * 55);
+    setTimeout(() => { this.pulse("C5", 0.12, 0.26); this.pulse("E5", 0.12, 0.2, 0.12); this.pulse("G5", 0.22, 0.26, 0.24); }, 620);
+  },
+  // Эффекты выстрелов из магазина (не из оригинала — для купленных стилей)
+  laser() { this.pulse(1400, 0.09, 0.22, 0, 220); },
+  plasma() { this.pulse(500, 0.11, 0.22, 0, 1600); },
+
+  /* --- МОТОР ТАНКА: непрерывный низкочастотный шум APU ---
+     В оригинале двигатель гудит постоянно и меняет тон при движении.       */
+  engine(on, moving) {
+    if (!this.ok()) { return; }
+    if (on && !this.engineSrc) {
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.lfsrBuffer(0.5, 900, 900, false, 0);
+      src.loop = true;
+      const g = this.ctx.createGain(); g.gain.value = 0.05;
+      const lp = this.ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 900;
+      src.connect(lp); lp.connect(g); g.connect(this.master); src.start();
+      this.engineSrc = src; this.engineGain = g; this.engineLp = lp;
+    } else if (!on && this.engineSrc) {
+      try { this.engineSrc.stop(); } catch (e) { }
+      this.engineSrc = null; this.engineGain = null;
+    }
+    if (this.engineSrc) {
+      // Едет — тон выше и громче, стоит — низкий холостой гул
+      const t = this.ctx.currentTime;
+      this.engineSrc.playbackRate.setTargetAtTime(moving ? 1.0 : 0.55, t, 0.04);
+      this.engineGain.gain.setTargetAtTime(moving ? 0.06 : 0.035, t, 0.05);
+    }
+  },
+  toggle() { this.enabled = !this.enabled; if (!this.enabled) this.engine(false); return this.enabled; }
+};
+
+/* ============================== 5. ПАЛИТРА NES И ПИКСЕЛЬНАЯ ГРАФИКА ============================== */
+const PAL = {
+  yellow: "#C09848", yellowD: "#8a6a28", yellowL: "#e8c878",
+  green: "#70B050", greenD: "#3e7030", greenL: "#a8e080",
+  blue: "#5040A0", blueL: "#8878e0", blueD: "#302068",
+  red: "#C04040", redL: "#f08080", redD: "#802020",
+  silver: "#B8B8B8", silverD: "#707070", silverL: "#f0f0f0",
+  gold: "#F0C020", goldD: "#a07800", goldL: "#fff090",
+  black: "#303030", blackL: "#606060",
+  purple: "#9040C0", purpleL: "#c890f0",
+  orange: "#E07020", orangeL: "#ffb060",
+  white: "#F8F8F8", whiteD: "#a0a0a0",
+  brick: "#B85030", brickD: "#7a3018", brickL: "#e08050",
+  steel: "#B8B8B8", steelD: "#787878",
+  water: "#3050C8", waterL: "#5878e8",
+  tree: "#38A038", treeD: "#1e6820",
+  ice: "#C8E8F8", iceD: "#90b8d0",
+  bg: "#606060", field: "#000000"
+};
+// Цвет танка -> триада оттенков {main, light, dark}
+const TANK_COLORS = {
+  yellow: [PAL.yellow, PAL.yellowL, PAL.yellowD], red: [PAL.red, PAL.redL, PAL.redD],
+  blue: ["#4060D0", "#80a0ff", "#203080"], green: [PAL.green, PAL.greenL, PAL.greenD],
+  black: [PAL.black, PAL.blackL, "#101010"], purple: [PAL.purple, PAL.purpleL, "#502070"],
+  orange: [PAL.orange, PAL.orangeL, "#803808"], white: [PAL.white, "#ffffff", PAL.whiteD],
+  gold: [PAL.gold, PAL.goldL, PAL.goldD],
+  // Цвета врагов
+  e_basic: [PAL.yellow, PAL.yellowL, PAL.yellowD], e_fast: [PAL.silver, PAL.silverL, PAL.silverD],
+  e_power: [PAL.gold, PAL.goldL, PAL.goldD], e_boss: ["#D02020", "#ff7070", "#701010"],
+  // Броневой танк: цвет меняется по мере повреждений (как в оригинале)
+  e_armor: [PAL.green, PAL.greenL, PAL.greenD], e_armor_1: ["#B8B8B8", "#f0f0f0", "#707070"],
+  e_armor_2: ["#E07020", "#ffb060", "#803808"], e_armor_3: ["#F0C020", "#fff090", "#a07800"],
+  bonusFlash: [PAL.red, PAL.redL, PAL.redD]
+};
+
+/* --- Рисование танка процедурно (сетка 16x16 «пикселей», масштаб 2 => 32px) --- */
+function drawTank(ctx, x, y, dir, colors, opt = {}) {
+  const s = 2, [m, l, d] = colors;
+  const px = (a, b, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x + a * s, y + b * s, w * s, h * s); };
+  ctx.save();
+  // Поворот вокруг центра (dir: 0=вверх,1=вправо,2=вниз,3=влево)
+  ctx.translate(x + 16, y + 16); ctx.rotate(dir * Math.PI / 2); ctx.translate(-x - 16, -y - 16);
+  const ph = opt.trackPhase ? 1 : 0;
+  // Гусеницы
+  px(0, 2, 3, 12, d); px(13, 2, 3, 12, d);
+  for (let i = 0; i < 6; i++) { px(0, 2 + i * 2 + ph, 3, 1, l); px(13, 2 + i * 2 + ph, 3, 1, l); }
+  // Корпус
+  px(3, 3, 10, 10, m); px(3, 3, 1, 10, l); px(12, 3, 1, 10, d); px(3, 12, 10, 1, d);
+  // Эмблема-скин на корпусе
+  if (opt.skin && opt.skin !== "classic") drawSkin(ctx, x, y, opt.skin, s, opt.skinData);
+  // Башня и ствол
+  px(6, 5, 4, 4, l); px(6, 5, 4, 1, "#f8f8f8"); px(7, 0, 2, 6, l); px(7, 0, 2, 1, "#f8f8f8");
+  // Полоски «звёзд» (уровень прокачки) на корпусе
+  if (opt.stars) for (let i = 0; i < opt.stars; i++) px(4 + i * 3, 10, 2, 1, "#fff");
+  ctx.restore();
+  // Щит неуязвимости (мерцающая рамка)
+  if (opt.shield) {
+    const c = (Math.floor(now() / 60) % 2) ? "#80d8ff" : "#ffffff";
+    ctx.strokeStyle = c; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, 30, 30);
+    ctx.strokeStyle = "rgba(128,216,255,.4)"; ctx.strokeRect(x - 2, y - 2, 36, 36);
+  }
+  // Броня (купленный апгрейд) — уголки
+  if (opt.armor > 0) {
+    ctx.fillStyle = "#40e0ff";
+    ctx.fillRect(x, y, 4, 2); ctx.fillRect(x + 28, y, 4, 2);
+    ctx.fillRect(x, y + 30, 4, 2); ctx.fillRect(x + 28, y + 30, 4, 2);
+  }
+}
+// Эмблемы (скины) 6x6 в центре корпуса
+const SKIN_ART = {
+  star: ["..##..", ".####.", "######", ".####.", ".#..#.", "......"],
+  bolt: ["...##.", "..##..", ".####.", "..##..", ".##...", "##...."],
+  skull: [".####.", "#.##.#", "######", ".####.", ".#.#..", "......"],
+  flame: ["..#...", ".###..", "#####.", "#####.", ".###..", "..#..."],
+  dragon: ["#....#", "######", ".####.", "######", "#.##.#", "..##.."],
+  flag: ["####..", "####..", "####..", "#.....", "#.....", "#....."]
+};
+function drawSkin(ctx, x, y, skin, s, data) {
+  const art = skin === "custom" ? (data || SKIN_ART.star) : (SKIN_ART[skin] || SKIN_ART.star);
+  const col = skin === "flag" ? (data || "#e04040") : "#ffffff";
+  ctx.fillStyle = col;
+  for (let r = 0; r < 6; r++) for (let c = 0; c < 6; c++)
+    if (art[r] && art[r][c] === "#") ctx.fillRect(x + (5 + c) * s, y + (4 + r) * s, s, s);
+}
+/* ============================== 6. СОХРАНЕНИЕ / ПРОФИЛЬ (localStorage) ============================== */
+const KEY = "battlecity_save_v1";
+const DEFAULT_SAVE = {
+  name: "PLAYER1",
+  avatar: 0,
+  coins: 0,
+  maxLevel: 1,                 // максимально пройденный уровень (для разблокировки товаров)
+  owned: { color: ["yellow"], skin: ["classic"], shot: ["normal"], upgrade: [], effect: [] },
+  equipped: { color: "yellow", skin: "classic", shot: "normal", flag: "ru", custom: null },
+  upgrades: { speed: 0, armor: 0, range: 0, reload: 0 },  // уровни постоянных улучшений
+  premium: { tier: "none", until: 0 },                    // patron / sponsor / legend
+  stats: {
+    games: 0, wins: 0, losses: 0, kills: 0, killsBasic: 0, killsFast: 0, killsPower: 0, killsArmor: 0, killsBoss: 0,
+    blocks: 0, levels: 0, coopLevels: 0, playTime: 0, bestScore: 0, totalScore: 0, deaths: 0,
+    bonusesTaken: {}, perfectLevels: 0, fastLevels: 0, editorPublished: 0, bulletsFired: 0
+  },
+  records: [],                 // локальный топ-10 [{name,score,level,date}]
+  achievements: {},            // id -> timestamp получения
+  daily: { last: "", streak: 0 },
+  challenges: { date: "", done: [] },
+  customLevels: [],            // уровни из редактора
+  progress: null,              // сохранённая игра
+  settings: { sound: true, weather: true, voice: false, showFPS: false }
+};
+let SAVE = loadSave();
+function loadSave() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return JSON.parse(JSON.stringify(DEFAULT_SAVE));
+    const s = JSON.parse(raw);
+    return deepMerge(JSON.parse(JSON.stringify(DEFAULT_SAVE)), s);
+  } catch (e) { return JSON.parse(JSON.stringify(DEFAULT_SAVE)); }
+}
+function deepMerge(base, over) {
+  for (const k in over) {
+    if (over[k] && typeof over[k] === "object" && !Array.isArray(over[k]) && base[k]) deepMerge(base[k], over[k]);
+    else base[k] = over[k];
+  }
+  return base;
+}
+let saveTimer = null;
+function persist() {   // отложенная запись, чтобы не тормозить 60 FPS
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(KEY, JSON.stringify(SAVE)); } catch (e) { }
+    Online.syncProfile();   // синхронизация с облаком (если доступно)
+  }, 300);
+}
+// Начисление монет с учётом премиум-множителя
+function addCoins(n, why) {
+  const mult = premiumMult();
+  const total = Math.round(n * mult);
+  SAVE.coins += total; persist();
+  if (why) toast(`+${total} монет — ${why}`, "#f0c020");
+  Audio_.coin();
+  return total;
+}
+function premiumMult() {
+  const t = SAVE.premium;
+  if (!t || t.until < now()) return 1;
+  return t.tier === "patron" ? 1.5 : t.tier === "sponsor" ? 2 : t.tier === "legend" ? 2.5 : 1;
+}
+function isPremium(tier) {
+  const p = SAVE.premium;
+  if (!p || p.until < now()) return false;
+  const order = { patron: 1, sponsor: 2, legend: 3 };
+  return order[p.tier] >= order[tier];
+}
+
+/* ============================== 7. КАТАЛОГ МАГАЗИНА ============================== */
+const SHOP = {
+  color: [
+    { id: "yellow", name: "ЖЁЛТЫЙ (КЛАССИКА)", price: 0, lvl: 0 },
+    { id: "red", name: "КРАСНЫЙ", price: 200, lvl: 3 },
+    { id: "blue", name: "СИНИЙ", price: 300, lvl: 5 },
+    { id: "green", name: "ЗЕЛЁНЫЙ", price: 400, lvl: 8 },
+    { id: "black", name: "ЧЁРНЫЙ", price: 600, lvl: 12 },
+    { id: "purple", name: "ФИОЛЕТОВЫЙ", price: 800, lvl: 18 },
+    { id: "orange", name: "ОРАНЖЕВЫЙ", price: 1000, lvl: 25 },
+    { id: "white", name: "БЕЛЫЙ", price: 2000, lvl: 35 },
+    { id: "gold", name: "ЗОЛОТОЙ (ТОП-10 РЕЙТИНГА)", price: 5000, lvl: 0, top10: true }
+  ],
+  skin: [
+    { id: "classic", name: "КЛАССИЧЕСКИЙ", price: 0 },
+    { id: "star", name: "ЗВЕЗДА", price: 300 },
+    { id: "bolt", name: "МОЛНИЯ", price: 400 },
+    { id: "skull", name: "ЧЕРЕП", price: 500 },
+    { id: "flame", name: "ПЛАМЯ", price: 700 },
+    { id: "dragon", name: "ДРАКОН", price: 1000 },
+    { id: "flag", name: "ФЛАГ СТРАНЫ (10 НА ВЫБОР)", price: 500 },
+    { id: "custom", name: "ПИКСЕЛЬ-АРТ (СВОЙ РИСУНОК)", price: 1000 },
+    { id: "patron", name: "ПАТРОН (ЭКСКЛЮЗИВ ПОДПИСКИ)", price: -1, premium: "patron" },
+    { id: "sponsor", name: "СПОНСОР (ЭКСКЛЮЗИВ ПОДПИСКИ)", price: -1, premium: "sponsor" }
+  ],
+  shot: [
+    { id: "normal", name: "ОБЫЧНЫЙ", price: 0 },
+    { id: "laser", name: "ЛАЗЕРНЫЙ (КРАСНЫЙ ЛУЧ)", price: 400 },
+    { id: "plasma", name: "ПЛАЗМЕННЫЙ (ЗЕЛЁНЫЙ + ИСКРЫ)", price: 600 },
+    { id: "fire", name: "ОГНЕННЫЙ (ТРАССЕР)", price: 800 },
+    { id: "electro", name: "ЭЛЕКТРИЧЕСКИЙ (РАЗРЯДЫ)", price: 1000 },
+    { id: "firework", name: "ФЕЙЕРВЕРК (РАЗЛЕТ ПРИ ВЗРЫВЕ)", price: 1500 }
+  ],
+  upgrade: [
+    { id: "speed1", name: "СКОРОСТЬ +10%", price: 500, grp: "speed", lv: 1 },
+    { id: "speed2", name: "СКОРОСТЬ +20%", price: 1000, grp: "speed", lv: 2, need: "speed1" },
+    { id: "armor1", name: "БРОНЯ: 1 ПОПАДАНИЕ", price: 700, grp: "armor", lv: 1 },
+    { id: "armor2", name: "БРОНЯ: 2 ПОПАДАНИЯ", price: 1500, grp: "armor", lv: 2, need: "armor1" },
+    { id: "range1", name: "ДАЛЬНОСТЬ +15%", price: 600, grp: "range", lv: 1 },
+    { id: "range2", name: "ДАЛЬНОСТЬ +30%", price: 1200, grp: "range", lv: 2, need: "range1" },
+    { id: "reload1", name: "ПЕРЕЗАРЯДКА +20%", price: 800, grp: "reload", lv: 1 }
+  ],
+  effect: [
+    { id: "trail", name: "СЛЕД ОТ ТАНКА (ДЫМ/ОГНИ)", price: 400 },
+    { id: "spawnfx", name: "АНИМАЦИЯ СТАРТА (ВСПЫШКА)", price: 300 },
+    { id: "boom", name: "РАЗНОЦВЕТНЫЕ ВЗРЫВЫ", price: 500 },
+    { id: "tracks", name: "АНИМИРОВАННЫЕ ГУСЕНИЦЫ", price: 400 }
+  ]
+};
+const FLAGS = [
+  { id: "ru", name: "РОССИЯ", c: "#e04040" }, { id: "us", name: "США", c: "#3050c8" },
+  { id: "jp", name: "ЯПОНИЯ", c: "#f04040" }, { id: "de", name: "ГЕРМАНИЯ", c: "#f0c020" },
+  { id: "fr", name: "ФРАНЦИЯ", c: "#4060d0" }, { id: "gb", name: "БРИТАНИЯ", c: "#c03030" },
+  { id: "br", name: "БРАЗИЛИЯ", c: "#40c040" }, { id: "kz", name: "КАЗАХСТАН", c: "#40c0e0" },
+  { id: "ua", name: "УКРАИНА", c: "#f0d030" }, { id: "cn", name: "КИТАЙ", c: "#e03030" }
+];
+// Пакеты монет за реальные деньги (донат)
+const COIN_PACKS = [
+  { id: "p1", coins: 1000, bonus: 0, usd: 1.99 },
+  { id: "p2", coins: 2500, bonus: 0.10, usd: 4.99 },
+  { id: "p3", coins: 6000, bonus: 0.15, usd: 9.99 },
+  { id: "p4", coins: 15000, bonus: 0.25, usd: 19.99 },
+  { id: "p5", coins: 40000, bonus: 0.35, usd: 49.99 }
+];
+const PREMIUM = [
+  { id: "patron", name: "ПАТРОН", usd: 9.99, desc: "+50% монет, эксклюзивный скин «ПАТРОН», без рекламы" },
+  { id: "sponsor", name: "СПОНСОР", usd: 19.99, desc: "+100% монет, 2 эксклюзивных скина, выбор карты в игре" },
+  { id: "legend", name: "ЛЕГЕНДА", usd: 49.99, desc: "Все скины бесплатно, имя в Зале Славы, уникальный аватар" }
+];
+// Куплен ли товар (с учётом премиума и бесплатных стартовых)
+function isOwned(cat, item) {
+  if (item.price === 0) return true;
+  if (item.premium) return isPremium(item.premium);
+  if (cat === "skin" && isPremium("legend")) return true;   // «Легенда» — все скины бесплатно
+  return (SAVE.owned[cat] || []).includes(item.id);
+}
+function isLocked(item) {
+  if (item.top10) return !LB.isTop10(SAVE.name);
+  if (item.premium) return !isPremium(item.premium);
+  if (item.need) return !SAVE.owned.upgrade.includes(item.need);
+  return (item.lvl || 0) > SAVE.maxLevel;
+}
+function buy(cat, item) {
+  if (isOwned(cat, item)) return false;
+  if (isLocked(item)) { toast("ЗАБЛОКИРОВАНО: нужен уровень " + item.lvl, "#d05050"); Audio_.hitWall(); return false; }
+  if (item.price < 0) { toast("Доступно только по подписке", "#d05050"); return false; }
+  if (SAVE.coins < item.price) { toast("НЕ ХВАТАЕТ МОНЕТ", "#d05050"); Audio_.hitWall(); return false; }
+  SAVE.coins -= item.price;
+  SAVE.owned[cat] = SAVE.owned[cat] || []; SAVE.owned[cat].push(item.id);
+  if (cat === "upgrade") SAVE.upgrades[item.grp] = Math.max(SAVE.upgrades[item.grp], item.lv);
+  persist(); Audio_.bonus(); toast("КУПЛЕНО: " + item.name, "#70B050");
+  Ach.check();
+  return true;
+}
+
+/* ============================== 8. ДОСТИЖЕНИЯ (30+) ============================== */
+const ACHIEVEMENTS = [
+  { id: "rookie", n: "НОВИЧОК", d: "Пройти 1 уровень", c: s => s.levels >= 1, r: 50 },
+  { id: "vet", n: "ВЕТЕРАН", d: "Пройти 35 уровней", c: s => s.levels >= 35, r: 1000 },
+  { id: "term", n: "ТЕРМИНАТОР", d: "Уничтожить 500 врагов", c: s => s.kills >= 500, r: 1000 },
+  { id: "kill100", n: "ОХОТНИК", d: "Уничтожить 100 врагов", c: s => s.kills >= 100, r: 200 },
+  { id: "kill10", n: "ПЕРВАЯ КРОВЬ", d: "Уничтожить 10 врагов", c: s => s.kills >= 10, r: 30 },
+  { id: "lvl10", n: "ПОЛПУТИ", d: "Пройти 10 уровней", c: s => s.levels >= 10, r: 250 },
+  { id: "invuln", n: "НЕУЯЗВИМЫЙ", d: "Пройти уровень без потери жизни", c: s => s.perfectLevels >= 1, r: 150 },
+  { id: "invuln5", n: "БЕЗУПРЕЧНЫЙ", d: "5 уровней без потерь", c: s => s.perfectLevels >= 5, r: 400 },
+  { id: "sapper", n: "САПЁР", d: "Разрушить 100 блоков", c: s => s.blocks >= 100, r: 100 },
+  { id: "sapper1k", n: "БУЛЬДОЗЕР", d: "Разрушить 1000 блоков", c: s => s.blocks >= 1000, r: 500 },
+  { id: "speedrun", n: "СКОРОСТНОЙ", d: "Пройти уровень за 1 минуту", c: s => s.fastLevels >= 1, r: 200 },
+  { id: "speedrun5", n: "МОЛНИЯ", d: "5 быстрых уровней", c: s => s.fastLevels >= 5, r: 500 },
+  { id: "team", n: "КОМАНДНЫЙ ИГРОК", d: "10 уровней в кооперативе", c: s => s.coopLevels >= 10, r: 300 },
+  { id: "editor", n: "МАСТЕР РЕДАКТОРА", d: "Опубликовать 5 уровней", c: s => s.editorPublished >= 5, r: 400 },
+  { id: "boss1", n: "ОХОТНИК НА БОССОВ", d: "Убить босса", c: s => s.killsBoss >= 1, r: 200 },
+  { id: "boss5", n: "УБИЙЦА ТИТАНОВ", d: "Убить 5 боссов", c: s => s.killsBoss >= 5, r: 600 },
+  { id: "fast50", n: "ЛОВЕЦ СЕРЕБРА", d: "50 быстрых танков", c: s => s.killsFast >= 50, r: 250 },
+  { id: "power50", n: "ЗОЛОТОБОЙ", d: "50 мощных танков", c: s => s.killsPower >= 50, r: 300 },
+  { id: "score10k", n: "ДЕСЯТЬ ТЫСЯЧ", d: "10 000 очков за игру", c: s => s.bestScore >= 10000, r: 300 },
+  { id: "score50k", n: "ЛЕГЕНДА СЧЁТА", d: "50 000 очков за игру", c: s => s.bestScore >= 50000, r: 1000 },
+  { id: "games10", n: "ЗАВСЕГДАТАЙ", d: "Сыграть 10 игр", c: s => s.games >= 10, r: 100 },
+  { id: "games100", n: "ЖИТЕЛЬ ГОРОДА", d: "Сыграть 100 игр", c: s => s.games >= 100, r: 500 },
+  { id: "time1h", n: "ЧАС В БОЮ", d: "Наиграть 1 час", c: s => s.playTime >= 3600000, r: 200 },
+  { id: "time10h", n: "ДЕСЯТЬ ЧАСОВ", d: "Наиграть 10 часов", c: s => s.playTime >= 36000000, r: 800 },
+  { id: "bullets1k", n: "ПАТРОНЫ КОНЧИЛИСЬ", d: "1000 выстрелов", c: s => s.bulletsFired >= 1000, r: 150 },
+  { id: "wins10", n: "ПОБЕДИТЕЛЬ", d: "10 побед", c: s => s.wins >= 10, r: 250 },
+  { id: "survivor", n: "ВЫЖИВШИЙ", d: "10 волн в режиме выживания", c: s => (s.survivalWaves || 0) >= 10, r: 300 },
+  { id: "endless20", n: "БЕСКОНЕЧНОСТЬ", d: "20 волн бесконечного режима", c: s => (s.endlessWaves || 0) >= 20, r: 500 },
+  { id: "rich", n: "БОГАЧ", d: "Накопить 10 000 монет", c: s => SAVE.coins >= 10000, r: 500 },
+  { id: "collector", n: "КОЛЛЕКЦИОНЕР", d: "Купить 10 предметов", c: s => ownedCount() >= 10, r: 400 },
+  { id: "stylish", n: "СТИЛЬНЫЙ", d: "Купить все цвета танка", c: s => SAVE.owned.color.length >= 9, r: 800 },
+  { id: "streak7", n: "НЕДЕЛЯ В СТРОЮ", d: "Стрик входа 7 дней", c: s => SAVE.daily.streak >= 7, r: 300 },
+  { id: "challenger", n: "ЧЕЛЛЕНДЖЕР", d: "Выполнить ежедневный челлендж", c: s => (s.challengesDone || 0) >= 1, r: 100 },
+  { id: "eagle", n: "ХРАНИТЕЛЬ ОРЛА", d: "Сохранить базу 10 раз", c: s => (s.basesSaved || 0) >= 10, r: 300 }
+];
+function ownedCount() { let n = 0; for (const k in SAVE.owned) n += SAVE.owned[k].length; return n - 3; }
+const Ach = {
+  check() {
+    let got = [];
+    for (const a of ACHIEVEMENTS) {
+      if (SAVE.achievements[a.id]) continue;
+      try { if (a.c(SAVE.stats)) { SAVE.achievements[a.id] = now(); got.push(a); } } catch (e) { }
+    }
+    if (got.length) {
+      got.forEach((a, i) => setTimeout(() => {
+        toast("★ ДОСТИЖЕНИЕ: " + a.n + " (+" + a.r + "🪙)", "#f0c020");
+        SAVE.coins += a.r; Audio_.bonus();
+      }, i * 700));
+      persist();
+    }
+    return got;
+  },
+  count() { return Object.keys(SAVE.achievements).length; }
+};
+
+/* ============================== 9. УРОВНИ И ПОЛЕ БОЯ ============================== */
+/* Все данные ниже сняты с оригинальной Battle City (NES, 1985/Dendy 1990):
+   35 карт, спрайты местности и орла — попиксельно, как в оригинале.
+   Сетка разрушения — 52x52 «юнита» по 8 px: в оригинале кирпич ломается
+   кусками 4x4 NES-пикселя, а один блок карты = 4x4 таких куска.            */
+
+const EAGLE_ART = ["................","##............##",".##...###....##.","####...#R#..####",".###...##...###.","######.##.######","..#R########R#..",".###R######R###.","..####R##R####..","..############..","...###.##.###...",".......##.......","......####......","....########....","....##.##.##....","................"];
+const EAGLE_BROKEN_ART = ["................","................",".....B..........","....BB.#........","....B.###.......","...B.#####......","..BB.########...","..B.##########..",".BB.##########..",".B..########.##.",".B.######..#.##.",".B...###.....#..",".B.....#.....#..",".B..............",".B..............",".B.............."];
+const STEEL_SHADE = ["........",".......#","......##","......##","......##","......##","..######",".#######"];
+
+// Оригинальные 35 карт Battle City (NES). Формат: 13 строк по 13 клеток,
+// клетка = 2 символа: тип + hex-маска четвертей (1=ЛВ,2=ПВ,4=ЛН,8=ПН).
+// . пусто  B кирпич  T сталь  R вода  S лёд  F лес  E орёл
+const ORIGINAL_LEVELS = [
+  /* 1*/ ["..........................","..Bf..Bf..Bf..Bf..Bf..Bf..","..Bf..Bf..Bf..Bf..Bf..Bf..","..Bf..Bf..BfTfBf..Bf..Bf..","..Bf..Bf..B3..B3..Bf..Bf..","..B3..B3..Bc..Bc..B3..B3..","Bc..BcBc..B3..B3..BcBc..Bc","T3..B3B3..Bc..Bc..B3B3..T3","..Bc..Bc..BfBfBf..Bc..Bc..","..Bf..Bf..Bf..Bf..Bf..Bf..","..Bf..Bf..B3..B3..Bf..Bf..","..Bf..Bf..B8BcB4..Bf..Bf..","..........BaEfB5.........."],
+  /* 2*/ ["......Tf......Tf..........","..B3..Tf......Bf..Bf..Bf..","..Bf........BfBf..BfTfBf..","......Bf..........Tf......","Ff....Bf....Tf....BfFfBfTf","FfFf......Bf....Tf..Ff....","..BfBfBfFfFfFfTf....FfBf..","......TfFfBf..Bf..Bf..Bf..","TfBf..Tf..Bf..Bf......Bf..","..Bf..Bf..BfBfBf..BfTfBf..","..Bf..Bf..BfBfBf..........","..Bf......B8BcB4..Bf..Bf..","..Bf..Bf..BaEfB5..BfBfBf.."],
+  /* 3*/ ["........Bf......Bf........","..FfFfFfBf..........TcTcTc","BfFfFfFf..................","FfFfFfFf......Bf..BfBfBfB5","FfFfFfFfBfBfBfB3..Bf..Ba..","FfFfFfFf....Bf........Ba..","..Ff........TfTfTf....Ff..","..Bc..Bf..........FfFfFfFf","BfB5BaBfB5BcB3B3B3FfFfFfFf","..........Bf..BcBcFfFfFfFf","Bf....T5......B3B3FfFfFf..","BfBf..T5..B8BcB4..FfFfFf..","TfBfBf....BaEfB5..Bf......"],
+  /* 4*/ ["..FfFf................Ff..","FfFf....BcBfBfBcBc......Ff","Ff....BaBfBfBfBfBfBfBc..T3","T3....BfBfBfBfBfBfBfBfB5..","....BaB3......B3BfBf..B5..","Rf..Ba..T5..T5..BfB5......","....Bf..BcBc....BfB5..RfRf","....BfBfBfBfBfBfBfBf......","..BaBfBfBfBfBfBfBfBfB5....","..B3B3BfBfBfBfBfBfB3B3....","..BfBfBcB3BfBfB3BcBfBf..Ff","Ff..B3B3..B8BcB4B3B3..FfFf","TfFf......BaEfB5....FfFfTf"],
+  /* 5*/ ["........BfBf..............","Tc..Bc..Bf......T3T3Tf....","Tf..Bf......Bf............","Bf..BfBfBf..BfBf..RfRf..Rf","B3......B3........Rf......","....Bc..RfRf..RfRfRf..BfBf","BfBf....RfBf..BfBf........","........Rf..........TaT5..","RfRfRf..Rf..Tf..Bf..Ta....","......BcBc..........TaBfBf","........BfB3B3B3BfBc......","BfBfB3....B8BcB4..B3Bf....","B3........BaEfB5.........."],
+  /* 6*/ ["..........Ba..B5FfFf......","..B5Ta..B5......BaFfB5BaFf","..B5Ta..B5..Bf..BaFfB5BaFf","..Bf....Bf..Tf..BfFf..BfFf","......BaT3..Bf..B3T5..FfFf","BfBfB5....FfBfFf....BaBfBf","........BaFfFfFfB5........","TfBfBf..B3FfFfFfB3BaBfBfTf","T3T3T3..Bc..Ff..Bc..T3T3T3","..Bf....Bf......Bf........","..BfB5....B3..B3....BaBfFf","....B3....B8BcB4....FfFfFf","....Bc....BaEfB5....BcFfFf"],
+  /* 7*/ ["..............T3T3........","....TfT3T3T3........Tf....","....Tf......Ff..T3TfTf....","..Tf......FfTf......Tf....","........FfTfTf......T3Tf..","..Tf..FfTfTfTf..Tf........","..Ta..TfTf......TfTf......","T5......Tf..TfTfTf....Ta..","..TaTf......TfTfFf....Tf..","..Tf........TfFf....TfTf..","..T3T3Tf....Ff....Tf......","..........B8BcB4..T3..TcTf","TcTc......BaEfB5.........."],
+  /* 8*/ ["....Bf....Bf..Bc..Bf......","FfBfBfBf..Bf..Tc..BfB5....","FfFfFf....B3..Bf..B3..BaB5","FfRfRfRfRfRfRfRfRfRfRf..Rf","..Bf........BcBc..........","....Bf....BaBfBfB3BfB3T3T3","BfBf..Bf..BaBfBfFfBfTcTcBf","......Tf..Tc..FfFfFfFf....","RfRf..RfRfRfRfRf..RfRfRfRf","FfFf..Ba....BcBc..........","FfFfBf..B5....Ba..TcBcBf..","FfTcBf..B5B8BcB4..B3..Bf..","..........BaEfB5..Bc..B3.."],
+  /* 9*/ ["......Bf..........TcFf....","Bf..........TcFfTaTfT5..Bf","......TcFfTaTfT5..T3Ff....","....TaTfT5..T3Ff..........","......T3Ff................","......FfTcFf..FfTcFf......","TfBf..TaTfT5..TaTfT5..BfTf","......FfT3Ff..FfT3Ff......","........Tc......Tc........","Bf....TaTfT5..TaTfT5....Bf","Bf....FfT3Ff..FfT3Ff....Bf","....Bc....B8BcB4....Bc....","....BfBf..BaEfB5..BfBf...."],
+  /*10*/ ["..........................","..BaB3Bf............BfB3B5","BaB3....Bf..FfFf..Bf....Ba","Bf......BfFfFfFfFfBf....Ba","Bf......BfFfTfTfFfBf....Bf","BaBcBcBfRfRfRfRfRfRfBfBfBf","..BfBfBfTfTfBfTfTfBfBfBfB5","....BfBfTf..Bf..TfBfBfB5..","....BfBfBfBfBfBfBfBfBfB5..","BfFfB3B3B3TfTfB3B3B3B3FfBf","BfFfFfFfFfFfFfFfFfFfFfFfBf","....FfFfFfB8BcB4FfFfFfFf..","......B5..BaEfB5....B5...."],
+  /*11*/ ["..........Tf..Bf..BfBf....","..BaBfBfBfBf..Bf..........","......B5..Bf..BfBf..FfFfFf","..Ba..........Tf..FfFfFfFf","..Ba..BfBfBfTfBfBfFfFfB3Tf","..B3B3B3Tf....Bf..FfFf..Ba","BaBfBfBf..TfFfFfFfFfFf....","......Tf....FfFfFfFfFfBf..","TfBf..FfFfFfFfTfFfFfFfBf..","BaBfFfFfFfFfFf........BfB5","..BfFfFf........T3BfBfBf..","....FfFf..B8BcB4..Bf..Ba..","..BcFfFf..BaEfB5.........."],
+  /*12*/ ["..............BfBfBf......","..BfBfBfBc..Bc....Bf......","........Bf..B3........BfBf","..RfRfRfRfRf..BfB5....BfT3","....TcTcTcRf..Bf..TfT5Bf..","Bf..BfBfBfRfRfRf..RfBfBf..","........TfRf......RfT3....","RfRfRf..RfRfBfBf..Rf......","..........BfT3T3..RfRfRf..","BfBfBf....................","....Bf..T3T3......BfBf..Ba","Bf........B8BcB4..Bf....Bf","..........BaEfB5.........."],
+  /*13*/ ["........Bc......Bc........","..BfBfBfBf......BfBfBfBf..","..Bf........Bf........Tf..","..Tf..BfB3......B3Bf..BfBf","..Bf..B5FfTcTfTcFfBa..TfBf","..B3....FfFfFfFfFf....T3Bf","BfTc....FfFfFfFfFf....BcBf","BfTf..B5FfT3TfT3FfBa..Bf..","BfBf..BfBc......BcBf..Tf..","BfTf........Bf........Bf..","BfBfBfBfBf......BfBfBfTfTf","BfBf....B3B8BcB4B3....Bf..","BfBf......BaEfB5.........."],
+  /*14*/ ["..........................","FfFf....BcBfBfBfBc....FfFf","Ff....BaBfBfBfBfBfB5....Ff","......BfBfFfBfFfBfBf......","......BfFfFfBfFfFfBf......","Ff....BfBfBfBfBfBfBf....Ff","FfFf....BfFfBfFfBf....FfFf","RfRfRf..BfBfBfBfBf..RfRfRf","........BaBaBaBaBa........","........B5B5B5B5B5........","TaTaTa..............T5T5T5","B5B5B5....B8BcB4....BaBaBa","T5T5T5Ta..BaEfB5..T5TaTaTa"],
+  /*15*/ ["........BfBf....Bf........","..FfFfBfBf......Bf........","FfFfFfFfFfFfFfFfBfBf......","FfT3BfFfBfBfBfFfFfFfFfBfTf","FfFfBfFfFfFfT3FfFfBfT5Bf..","..FfFfBfTcFfFfFfFfBf..Bf..","..BfBfBfBfBfFfFfBfBfB5FfFf","TaT3BfBf......BfB3......Ff","..Bf..Bf..TcBcB3FfFfBfB5Ff","..Bf....BaBfB3FfFfBf....Ff","..BfBfB5BaB3FfFfBcFfBfFfFf","....Bf..FfB8BcB4BfFfB3Ff..","....B3....BaEfB5..FfFfFf.."],
+  /*16*/ ["..........................","....TfFfTf................","......Ff..FfTc............","..Ff........FfBc..........","..FfFf....Ff..FfTc........","..Ff..Ff..Ff....FfBc......","..Ff....Ff......FfFfTc....","....Ff........FfFfFfFfBc..","......Ff....Ff..FfFfFfFf..","Bf..........Ff....FfFfFfTf","BfBf..........Ff..FfFfFfFf","TfBfBf....B8BcB4Ff..FfFfFf","TfTfBfBf..BaEfB5Ff....FfFf"],
+  /*17*/ ["........Bc..........Bc....","..Bf..BfBf....SfSfSfBfBf..","..Bf....Bf..TfSfSfSfSfSf..","SfSfSfT5Bf....BfSfSfSfSf..","SfSfSfSfSfSfBfBfBaB5......","....TaSfSfSfSfBfBaB5..T3T3","BfBfBfBfSfSfSfSfSfSfSfBfBf","......BfBfSfSfSfSfT5......","..BfBfBf..SfSfSfBfBf..Bf..","SfSfSfBfSf........Bf..Bf..","SfSfSfSfSfT3..T3....BcBf..","BfSfSfSfSfB8BcB4..Bf......","BfBfT5....BaEfB5..Bf..Bf.."],
+  /*18*/ ["................TfTfTfFf..","..Bf............Tf....Tf..","BfFfBf......BfBfBfBf..Tf..","..BfFfBf....Bf..FfBfTfTf..","....Bf..FfTfBfFf..Bf......","........Tf..BfTfBfBf......","....BfBfTfBf..Tf..........","....Bf..FfBfTfFf..........","TfTfTfFf..Bf....BfBf......","Tf..BfBfBfBf....BfTfTf....","Tf....Tf..........TfBfBf..","FfTfTfTf..B8BcB4....BfTfTf","..........BaEfB5......TfTf"],
+  /*19*/ ["..Bf..Bf..Bf..Bf..Bf..Bf..","..Bf..Bf..Bf..Bf..Bf..Bf..","..T3..T3..T3..T3..T3..T3..","Bc..Bc..Bf......Bf..Bc..Bc","Bf..BfB3Bf..Bf..BfB3Bf..Bf","T3..T3..Tf..T3..Tf..T3..T3","FfFf....Bf..Ff..Bf....FfFf","FfFfFfFfBfB3FfB3BfFfFfFfFf","FfFfFfFfFfFfFfFfFfFfFfFfFf","Bc..Bc..BfFfFfFfBf..Bc..Bc","..Bf..Bf....Ff....Bf..Bf..","..Bf..Bf..B8BcB4..Bf..Bf..","..B3..B3..BaEfB5..B3..B3.."],
+  /*20*/ ["......Rf..Bf....Bf..Bf....","................Bf..Tf....","......Rf..BcTf..Bf..Bf....","T3..BfRf..Tf..BcB3..Bf....","....BfRf......Bf..........","Bf..BfRfRf..RfRfRfRf....Bf","......Bc......Ff..Rf..T3T3","BfBfBaBf..TfFfFfFfRf..BcBc","B3..Ba....BfFfFfFfRf..Bf..","..Tc......Bf..Ff..Rf..Ff..","..Bf..Tc..B3B3B3....FfFfFf","..Bf..Bf..B8BcB4..RfFfFfFf","..........BaEfB5..Rf..Ff.."],
+  /*21*/ ["......BcBcBc....Bc........","..BcBfBfBfBfBfBfBfBf......","..FfFfFfFfFfFfFfFfBfBf....","FfFf............FfFfBfBf..","Ff..Tf....Tf......FfFfFf..","Ff..Tf....Tf......FfFfFf..","Ff....Ff........FfFfBfBfB5","FfFfFfFfFfFfFfFfFfBfBfBfB5","BfFfFfBfBfFfFfFfBfBfBfBf..","..BfBfBfBfBfBfBfBfBfBf..Tf","Tf..BfTfBfBfBfBfBfBfB5..Tf","..TfBfB3TfB8BcB4BfBfTfTfTf","..........BaEfB5.........."],
+  /*22*/ ["..........Ff..............","........FfTfFf............","....Ff....Ff....FfFf......","..FfBfFf......FfBfBfFf....","....FfBfFf......FfFf....Ff","Ff....Ff....Ff........FfTf","BfFf......FfTfFf....Ff..Ff","TfBfFf......Ff....FfTfFf..","BfFf....Ff......Ff..Ff....","Ff....FfBfFf..FfBfFf......","......FfBfFf....Ff....Ff..","..Ff....FfB8BcB4....FfTfFf","FfTfFf....BaEfB5..FfBfFf.."],
+  /*23*/ ["..........................","..........TfTf............","............Tf............","..TfTfFfFfBfTfBfFfFfTfTf..","......TfFfFfTfFfFfTf......","Ff......TfFfFfFfTf......Ff","TfFf......FfFfFf......FfTf","Ff......TcT3FfT3Tc......Ff","........Tf..Tc..Tf........","......Tf....Tf....Tf......","..........................","..........B8BcB4..........","....Tf....BaEfB5....Tf...."],
+  /*24*/ ["....Tf..BfT3........Ba....","....Bf..BfFf..B3BfBfBf....","..FfFf..BfFfBaB5......TfTf","FfFfFfFfFfFfBfBfBf..BaBf..","....FfFfBcBcT3Bf..BaBfB3Ba","BfT3..BcB3B3......BfB3..Ba","Ba..BcBfSfSfSfSfSfSfSfSfSf","Ba..B3..SfSfSfSfSfSfSfSfSf","....Tf..SfSfSfSfSfSfSfSfSf","Bf..Bf..SfSfSfSfSfSfSfSfSf","Ba..Bf..SfSfSfSfSfSfSfSfSf","Ba..Bf....B8BcB4SfSfSfSfSf","....B3....BaEfB5..SfSfSfSf"],
+  /*25*/ ["......Tf..Bf..Bf..Bf..Tf..","..Bf..Bf..........Tf......","..Bf..Bf....Tf....Tf..TfTf","..Bf......Bf..TfBf......Tf","........BfBf..BfBf..Tf....","....Tf..Bf....BfBf..BfBf..","Tf..Tf....Bf..Tf....TfBf..","....BfBf..Bf......BfTf....","..TfBfBf..BfBf..BfBf....Bf","..Bf......BfTf........BfBf","......Bf..BfBfTf..Tf....Bf","Bf..BfBf..B8BcB4..BfTf....","Bf..Bf....BaEfB5..BfBfBf.."],
+  /*26*/ ["....RfRf..................","Tc....RfFf..B5............","FfTc........T5..B5..RfRf..","FfFf..T3BcBa....T5FfRf....","FfFfFf....TfBcBa........Tc","FfFfT3Tc..Ba..TfBc....TcFf","FfT3....B3Tf..Ba..T3..FfFf","..........B5B3Tf....FfFfFf","....RfFfTa....B5B3TcT3FfFf","..RfRf..Ba..Ta..........Ff","............Ba..FfRf....T3","Tf........B8BcB4..RfRf....","TfTf......BaEfB5........Tf"],
+  /*27*/ ["........Tf................","TfTf....Tf....TfTf........","..Tf....Tf......Tf..TfTfFf","..Tf....TfTfTf..Ff..Tf....","..Bf........Tf..TfTfTf....","FfTfTf..TfBfTfBfBf........","....TfFfTfFf....Bf....TfTf","....Tf....Ff....Tf....Tf..","....Bf....Tf....TfTfBfTf..","FfTfTfTfFfFfBfTfTf..BfTf..","......Bf........FfFf..Bf..","......Tf..B8BcB4..Ff..Bf..","......Tf..BaEfB5..Tf..Bf.."],
+  /*28*/ ["....................TaT5..","............Tc......Tf....","..........BcFfBc..BfB5....","........TcFfFfFfTcBfB5....","......BcFfFfSfFfFfBfB5....","....TcFfFfSfSfSfFfFfB5....","..BcFfFfSfSfSfSfSfFfFfBc..","TcFfFfSfSfSfSfSfSfSfFfFfTc","FfFfSfSfSfSfSfSfSfSfSfFfFf","..FfSfSfSfSfSfSfSfSfSfFf..","..FfSfSfSfSfSfSfSfSfSfFf..","..FfSfSfSfB8BcB4SfSfSfFf..","..FfSfSf..BaEfB5..SfSfFf.."],
+  /*29*/ ["....................Bf....","..BfRfRf..Tf..Bf..........","....RfRfBfFfFfFfRfRf..Tf..","..........FfFfFfRfRfBf....","..Tf....RfRf..Ff..........","FfFfBf..RfRfTf........Bf..","FfFfFf............Tf....Tf","..BfRfRf..Bf..............","Tf..RfRfFfFfRfRfFfFf..Bf..","........Ff..RfRfFfFfRfRf..","......TfFf......FfFfRfRf..","....Bf..BfB8BcB4..........","Bf........BaEfB5..BfTf...."],
+  /*30*/ ["..........................","..........BcBc......Tc....","..TcTc..BcFfFfTc..BcFfBc..","BcFfFfBcFfFfFfFfBcFfFfFfBc","FfFfFfFfFfFfFfFfFfFfFfFfFf","TfFfRfFfFfFfFfFfRfFfFfFfFf","FfFfRfRfRfFfFfFfRfRfRfFfTf","FfFfFfFfRfFfTfFfFfFfRfFfFf","FfFfFfFfFfFfFfFfFfFfFfFfFf","FfFfFfFfFfB3B3FfFfFfFfFfT3","T3FfFfFfB3....B3FfFfFfT3..","..T3B3B3..B8BcB4B3B3B3....","..........BaEfB5.........."],
+  /*31*/ ["......Rf........Rf........","RfRf..Rf..RfRfRfRf..RfRfRf","FfFfBf....Bf....Rf..RfFfRf","FfRfRfRfRf..Tf....BfFfFfFf","FfFf..Rf....Rf..RfRfRfRfFf","RfRf..Rf..RfRf....Rf......","....BfFfBf..BfFf..Rf....Rf","..RfRfFfRfRfRfRf..FfBf..Rf","Bf....Bf....Rf..FfFfRf..Rf","RfRf..RfRf..RfBfRfRfRf....","....Bf..FfFf....FfRf....Rf","..RfRfRfFfB8BcB4..Rf..RfRf","..Rf......BaEfB5.........."],
+  /*32*/ ["SfSfSfSfSfSf..SfSfSfSfSfSf","SfSfSfSfSfSfSfSfSfSfSfSfSf","SfSfSfBfSfSfSfSfSfBfSfSfSf","SfBf..Bf..BfSfBf..Bf..BfSf","SfB3B3Bf..........BfB3B3Sf","SfSfSfBfBcBfTfBfBcBfSfSfSf","TfSfSfSf..T3..T3..SfSfSfTf","SfSfSfSf..Bc..Bc..SfSfSfSf","SfSfSfSf..Bf..Bf..SfSfSfSf","SfSfSfBf....Bc....BfSfSfSf","SfBfSfBf..T3T3T3..BfSfBfSf","..BfBcBf..B8BcB4..BfBcBf..","..B3......BaEfB5......B3.."],
+  /*33*/ ["........Tf........Tf......","..Tf......Tf....TfFfFf....","....Tf........TfFfTcT5....","......Tf..FfFfFfFfFf..Ta..","..T5....TfFfFfTfFf....Tf..","..T3T5Ff..TfFfFfTf....Ta..","....FfFfFfFfFf....Tf......","..TcT5Ff..TfFf......Tf....","..FfFfFfTf..Tf..Tc....Tf..","FfFfFfTf........Ta........","....Tf................TaTf","..........B8BcB4..TcT5....","T5..Tc....BaEfB5.........."],
+  /*34*/ ["........B5Ba..............","B5B5B5Ba..B5....B5B5......","B5B5B5BfBf......B5BfB5....","BaBa..BfB5....BaB5BfBf....","..B5..BfBaB5..B5BfBfBf....","..B5Ba....BfB5BfBaBaBf....","..B5....BaBfBfB5..B5Bf....","..Ba....B5BfBfB5..B5Bf....","..BaB3B3..BfBfBf..B5B5B3Bf","..Ba....BaB5BfBaB5B5B5BaBa","....B5..BfBaB5BfBf....Ba..","....B5BaB5B8BcB4BfB5..B5..","....B5Ba..BaEfB5..BfBf...."],
+  /*35*/ ["..........................","........Bf..Bf............","Ff....FfBfFfBfFf....Ff....","BfFfFfBfBfBfBfBfFfFfBfFf..","BfBfBfBfTfBfTfBfBfBfBfFf..","RfRfRfBfBfBfBfBfRfRfRfFf..","RfBfBfBfBfBfBfBfBfBfRfRfFf","BfBfBfRfBfBfBfRfBfBfBfFfFf","BfBfRfRfRfBfRfRfRfBfBfRfRf","FfRfRfFfFfFfFfFfRfRfFfRfFf","..FfFf..........FfFf..Ff..","..........B8BcB4..........","..........BaEfB5.........."],
+];
+// Состав волны врагов из оригинала (20 танков на уровень)
+const ORIGINAL_BOTS = [["18*basic", "2*fast"], ["2*armor", "4*fast", "14*basic"], ["14*basic", "4*fast", "2*armor"], ["10*power", "5*fast", "2*basic", "3*armor"], ["5*power", "2*armor", "8*basic", "5*fast"], ["7*power", "2*fast", "9*basic", "2*armor"], ["3*basic", "4*fast", "6*power", "7*basic"], ["7*power", "2*armor", "4*fast", "7*basic"], ["6*fast", "4*fast", "7*power", "3*armor"], ["12*basic", "2*fast", "4*power", "2*armor"], ["5*fast", "6*armor", "4*power", "5*fast"], ["8*power", "6*fast", "6*armor"], ["8*power", "8*fast", "4*armor"], ["10*power", "4*fast", "6*armor"], ["2*basic", "10*fast", "8*armor"], ["16*basic", "2*fast", "2*armor"], ["2*armor", "2*fast", "8*armor", "8*basic"], ["4*armor", "2*basic", "6*power", "8*fast"], ["4*fast", "8*armor", "4*basic", "4*power"], ["8*fast", "2*basic", "2*power", "8*armor"], ["8*power", "2*fast", "6*basic", "4*armor"], ["8*fast", "6*basic", "2*power", "4*armor"], ["6*armor", "4*power", "10*fast"], ["4*power", "2*armor", "4*fast", "10*basic"], ["2*power", "8*fast", "10*armor"], ["6*fast", "6*armor", "4*basic", "4*power"], ["2*power", "8*armor", "8*fast", "2*basic"], ["2*fast", "1*armor", "15*basic", "2*power"], ["10*power", "4*fast", "6*armor"], ["4*basic", "8*fast", "4*power", "4*armor"], ["3*power", "8*fast", "6*armor", "3*power"], ["8*armor", "6*basic", "2*power", "4*fast"], ["4*fast", "8*armor", "4*power", "4*fast"], ["4*power", "10*fast", "6*armor"], ["4*power", "6*fast", "10*armor"]];
+
+const LEVELS = ORIGINAL_LEVELS;
+
+// Коды местности
+const T = { EMPTY: 0, BRICK: 1, STEEL: 2, WATER: 3, TREE: 4, ICE: 5, BASE: 6 };
+const CHAR2TILE = { ".": T.EMPTY, "B": T.BRICK, "T": T.STEEL, "R": T.WATER, "F": T.TREE, "S": T.ICE, "E": T.BASE,
+                    "S_OLD": T.STEEL, "W": T.WATER };
+const TILE2CHAR = { 0: ".", 1: "B", 2: "T", 3: "R", 4: "F", 5: "S", 6: "E" };
+
+/* --- Цвета оригинала (палитра NES) --- */
+const NES = {
+  brickShade: "#636363", brickDark: "#6B0800", brickLight: "#9C4A00",
+  steel: "#ADADAD", steelLight: "#FFFFFF", steelShade: "#636363",
+  water: "#4242FF", waterLight: "#B5EFEF",
+  forestA: "#8CD600", forestB: "#005208", forestC: "#084A00",
+  snowA: "#FFFFFF", snowB: "#ADADAD", snowC: "#636363",
+  eagle: "#636363", eagleRed: "#6B0800", eagleBroken: "#9C4A00"
+};
+/* --- Предрендер повторяющихся текстур (ускоряет отрисовку и даёт точный рисунок) --- */
+const PAT = {};
+function makePattern(w, h, draw) {
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  draw(c.getContext("2d")); return c;
+}
+function buildPatterns() {
+  if (PAT.built) return;
+  PAT.built = true;
+  const P = 2;   // 1 «пиксель» оригинала = 2 px у нас
+  // Сталь: 8x8 пикселей оригинала -> 16 px
+  PAT.steel = makePattern(16, 16, x => {
+    x.fillStyle = NES.steel; x.fillRect(0, 0, 16, 16);
+    x.fillStyle = NES.steelLight; x.fillRect(4, 4, 8, 8);
+    x.fillStyle = NES.steelShade;
+    STEEL_SHADE.forEach((row, r) => row.split("").forEach((ch, c) => { if (ch === "#") x.fillRect(c * P, r * P, P, P); }));
+  });
+  // Вода: 2 кадра анимации, блок 16 пикселей оригинала -> 32 px (4 части по 16)
+  const RIVER = [
+    [[5, 0], [0, 2], [1, 3], [4, 3], [3, 4], [5, 4], [1, 6], [2, 7], [6, 7]],
+    [[7, 0], [1, 1], [2, 2], [3, 3], [6, 3], [7, 4], [3, 5], [2, 6], [4, 6], [0, 7]]
+  ];
+  PAT.water = [0, 1].map(sh => makePattern(32, 32, x => {
+    for (const [dx, dy] of [[0, 0], [16, 0], [0, 16], [16, 16]]) {
+      x.fillStyle = NES.water; x.fillRect(dx, dy, 16, 16);
+      x.fillStyle = NES.waterLight;
+      for (const [px, py] of RIVER[sh]) x.fillRect(dx + px * P, dy + py * P, P, P);
+    }
+  }));
+  // Лёд (снег)
+  PAT.ice = makePattern(32, 32, x => {
+    for (const [dx, dy] of [[0, 0], [16, 0], [0, 16], [16, 16]]) {
+      x.fillStyle = NES.snowB; x.fillRect(dx, dy, 16, 16);
+      const p = (px, py, col) => { x.fillStyle = col; x.fillRect(dx + px * P, dy + py * P, P, P); };
+      p(0, 0, NES.snowC); p(3, 0, NES.snowA); p(4, 0, NES.snowC); p(0, 3, NES.snowA); p(0, 4, NES.snowC);
+      for (let t = 0; t < 8; t++) p(t, 7 - t, NES.snowA);
+      for (let t = 0; t < 7; t++) p(1 + t, 7 - t, NES.snowC);
+      for (let t = 0; t < 4; t++) p(4 + t, 7 - t, NES.snowA);
+      for (let t = 0; t < 3; t++) p(5 + t, 7 - t, NES.snowC);
+    }
+  });
+  // Лес (кусты)
+  const FOREST = ["dbbbcbad", "bbcacaca", "bbbccaaa", "cbbaabca", "bbacaaac", "bcbaaaaa", "aaaaacaa", "daacaaad"];
+  const FSCHEME = { a: NES.forestA, b: NES.forestB, c: NES.forestC };
+  PAT.forest = makePattern(32, 32, x => {
+    for (const [dx, dy] of [[0, 0], [16, 0], [0, 16], [16, 16]])
+      FOREST.forEach((row, r) => row.split("").forEach((ch, c) => {
+        if (ch === "d") return;
+        x.fillStyle = FSCHEME[ch]; x.fillRect(dx + c * P, dy + r * P, P, P);
+      }));
+  });
+  // Орёл и разбитый орёл (16x16 пикселей оригинала -> 32 px)
+  PAT.eagle = makePattern(32, 32, x => {
+    EAGLE_ART.forEach((row, r) => row.split("").forEach((ch, c) => {
+      if (ch === ".") return;
+      x.fillStyle = ch === "R" ? NES.eagleRed : NES.eagle;
+      x.fillRect(c * P, r * P, P, P);
+    }));
+  });
+  PAT.eagleBroken = makePattern(32, 32, x => {
+    EAGLE_BROKEN_ART.forEach((row, r) => row.split("").forEach((ch, c) => {
+      if (ch === ".") return;
+      x.fillStyle = ch === "B" ? NES.eagleBroken : NES.eagle;
+      x.fillRect(c * P, r * P, P, P);
+    }));
+  });
+}
+buildPatterns();   // текстуры готовим сразу, чтобы отрисовка не зависела от порядка запуска
+
+// Орёл-база
+function drawEagle(ctx, x, y, destroyed) {
+  ctx.fillStyle = "#000"; ctx.fillRect(x, y, 32, 32);
+  ctx.drawImage(destroyed ? PAT.eagleBroken : PAT.eagle, x, y);
+}
+// Кирпичный «юнит» 8x8 px — рисунок зависит от чётности клетки (как в оригинале)
+function drawBrickUnit(ctx, px, py, ux, uy) {
+  const shape = ((ux + uy) % 2 === 0);
+  ctx.fillStyle = NES.brickShade; ctx.fillRect(px, py, 8, 8);
+  ctx.fillStyle = NES.brickDark; ctx.fillRect(px + (shape ? 0 : 2), py, shape ? 8 : 6, 6);
+  ctx.fillStyle = NES.brickLight; ctx.fillRect(px + (shape ? 0 : 4), py + 2, shape ? 8 : 4, 4);
+}
+
+/* ================================ ПОЛЕ БОЯ ================================ */
+class Field {
+  constructor() {
+    this.g = new Uint8Array(CFG.UCOLS * CFG.UCOLS);
+    this.baseX = 24; this.baseY = 48;      // левый-верхний юнит орла (4x4 юнита = 32 px)
+    this.baseDead = false;
+    this.waterPhase = 0;
+    this.cache = document.createElement("canvas");
+    this.cache.width = CFG.FIELD; this.cache.height = CFG.FIELD;
+    this.cctx = this.cache.getContext("2d");
+    this.dirty = true; this.waterUnits = []; this.forestUnits = [];
+  }
+  at(x, y) { return (x < 0 || y < 0 || x >= CFG.UCOLS || y >= CFG.UCOLS) ? T.STEEL : this.g[y * CFG.UCOLS + x]; }
+  set(x, y, v) {
+    if (x < 0 || y < 0 || x >= CFG.UCOLS || y >= CFG.UCOLS) return;
+    const i = y * CFG.UCOLS + x;
+    if (this.g[i] !== v) { this.g[i] = v; this.dirty = true; }
+  }
+  fillRectUnits(ux, uy, w, h, v) { for (let b = 0; b < h; b++) for (let a = 0; a < w; a++) this.set(ux + a, uy + b, v); }
+  /* Загрузка карты.
+     Новый формат (оригинал): 13 строк по 26 символов, клетка = тип + hex-маска четвертей.
+     Старый формат (уровни из редактора v1): 13 строк по 13 символов, по символу на клетку. */
+  load(rows) {
+    this.g.fill(T.EMPTY); this.baseDead = false; this.dirty = true;
+    const isNew = rows[0] && rows[0].length >= 26;
+    for (let cy = 0; cy < 13; cy++) {
+      const line = rows[cy] || "";
+      for (let cx = 0; cx < 13; cx++) {
+        let type, mask;
+        if (isNew) {
+          const t = line[cx * 2], h = line[cx * 2 + 1];
+          if (!t || t === ".") continue;
+          type = CHAR2TILE[t]; mask = parseInt(h, 16);
+          if (isNaN(mask)) mask = 15;
+        } else {
+          const ch = line[cx];
+          if (!ch || ch === ".") continue;
+          type = ch === "S" ? T.STEEL : (ch === "W" ? T.WATER : (ch === "T" ? T.TREE : (ch === "I" ? T.ICE : CHAR2TILE[ch])));
+          mask = 15;
+        }
+        if (type === undefined || type === T.EMPTY) continue;
+        const ux = cx * 4, uy = cy * 4;
+        if (type === T.BRICK || type === T.STEEL) {
+          // Маска четвертей: 1=лево-верх, 2=право-верх, 4=лево-низ, 8=право-низ
+          if (mask & 1) this.fillRectUnits(ux, uy, 2, 2, type);
+          if (mask & 2) this.fillRectUnits(ux + 2, uy, 2, 2, type);
+          if (mask & 4) this.fillRectUnits(ux, uy + 2, 2, 2, type);
+          if (mask & 8) this.fillRectUnits(ux + 2, uy + 2, 2, 2, type);
+        } else {
+          this.fillRectUnits(ux, uy, 4, 4, type);   // вода/лес/лёд/орёл — всегда вся клетка
+          if (type === T.BASE) { this.baseX = ux; this.baseY = uy; }
+        }
+      }
+    }
+    // Точки появления танков всегда свободны
+    [[0, 0], [6, 0], [12, 0], [4, 12], [8, 12]].forEach(([cx, cy]) => this.fillRectUnits(cx * 4, cy * 4, 4, 4, T.EMPTY));
+    this.fillRectUnits(this.baseX, this.baseY, 4, 4, T.BASE);
+  }
+  // Юниты кирпичной «коробки» вокруг орла (как в оригинале: U-образная стенка)
+  shieldUnits() {
+    const bx = this.baseX, by = this.baseY, list = [];
+    for (let x = bx - 2; x < bx + 6; x++) { list.push([x, by - 2]); list.push([x, by - 1]); }
+    for (let y = by; y < by + 4; y++) {
+      list.push([bx - 2, y]); list.push([bx - 1, y]);
+      list.push([bx + 4, y]); list.push([bx + 5, y]);
+    }
+    return list;
+  }
+  fortify(tile) { for (const [x, y] of this.shieldUnits()) if (this.at(x, y) !== T.BASE) this.set(x, y, tile); }
+  isSolidForTank(t) { return t === T.BRICK || t === T.STEEL || t === T.WATER || t === T.BASE; }
+  canMove(x, y, w, h) {
+    if (x < 0 || y < 0 || x + w > CFG.FIELD || y + h > CFG.FIELD) return false;
+    const U = CFG.UNIT;
+    const x0 = Math.floor(x / U), y0 = Math.floor(y / U);
+    const x1 = Math.floor((x + w - 1) / U), y1 = Math.floor((y + h - 1) / U);
+    for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++)
+      if (this.isSolidForTank(this.at(tx, ty))) return false;
+    return true;
+  }
+  onIce(x, y, w, h) {
+    const U = CFG.UNIT;
+    return this.at(Math.floor((x + w / 2) / U), Math.floor((y + h / 2) / U)) === T.ICE;
+  }
+  /* Попадание пули.
+     Ширина «просеки» — 8 NES-px (2 юнита), а ГЛУБИНА — ровно один юнит (4 NES-px),
+     как в оригинале: поэтому кирпичная клетка прошивается за 4 выстрела, а защита
+     орла толщиной в пол-клетки — за два. Раньше пуля задевала сразу два ряда и
+     сносила защиту базы одним снарядом.                                            */
+  bulletHit(b, power) {
+    const res = { hit: false, base: false, destroyed: 0 };
+    const U = CFG.UNIT;
+    let x0, x1, y0, y1;
+    // Просека выравнивается по сетке четвертей клетки (пара юнитов), как в оригинале
+    const pair = c => { const u = Math.floor(c / U); return u - (u % 2); };
+    if (b.dir === 0 || b.dir === 2) {
+      const edge = b.dir === 0 ? b.y : b.y + b.h - 1;
+      y0 = y1 = Math.floor(edge / U);            // глубина — ровно один юнит (4 px NES)
+      x0 = pair(b.x + b.w / 2); x1 = x0 + 1;     // ширина — два юнита (8 px NES)
+    } else {
+      const edge = b.dir === 3 ? b.x : b.x + b.w - 1;
+      x0 = x1 = Math.floor(edge / U);
+      y0 = pair(b.y + b.h / 2); y1 = y0 + 1;
+    }
+    for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
+      const t = this.at(tx, ty);
+      if (t === T.BASE) { res.hit = true; res.base = true; }
+      else if (t === T.BRICK) { this.set(tx, ty, T.EMPTY); res.hit = true; res.destroyed++; }
+      else if (t === T.STEEL) {
+        res.hit = true; res.steel = true;
+        // Сталь ломается только усиленной пулей и уходит целым куском 2x2 юнита
+        if (power >= 2) {
+          const sx = tx - (tx % 2), sy = ty - (ty % 2);
+          for (let a = 0; a < 2; a++) for (let c = 0; c < 2; c++)
+            if (this.at(sx + a, sy + c) === T.STEEL) { this.set(sx + a, sy + c, T.EMPTY); res.destroyed++; }
+        }
+      }
+    }
+    if (b.x < 0 || b.y < 0 || b.x + b.w > CFG.FIELD || b.y + b.h > CFG.FIELD) { res.hit = true; res.steel = true; }
+    return res;
+  }
+  destroyBase() {
+    this.baseDead = true;
+    this.fillRectUnits(this.baseX, this.baseY, 4, 4, T.EMPTY);
+  }
+  /* --- Отрисовка --- */
+  drawBack(ctx, ox, oy) {
+    if (this.dirty) this.rebuildCache();
+    ctx.drawImage(this.cache, ox, oy);
+    // Вода анимируется двумя кадрами, как в оригинале
+    this.waterPhase += 0.02;
+    const frame = PAT.water[Math.floor(this.waterPhase) % 2];
+    for (const [x, y] of this.waterUnits)
+      ctx.drawImage(frame, (x % 4) * 8, (y % 4) * 8, 8, 8, ox + x * 8, oy + y * 8, 8, 8);
+    drawEagle(ctx, ox + this.baseX * 8, oy + this.baseY * 8, this.baseDead);
+  }
+  rebuildCache() {
+    const ctx = this.cctx;
+    ctx.clearRect(0, 0, CFG.FIELD, CFG.FIELD);
+    this.waterUnits = []; this.forestUnits = [];
+    for (let y = 0; y < CFG.UCOLS; y++) for (let x = 0; x < CFG.UCOLS; x++) {
+      const t = this.g[y * CFG.UCOLS + x];
+      if (!t || t === T.BASE) continue;
+      const px = x * 8, py = y * 8;
+      if (t === T.BRICK) drawBrickUnit(ctx, px, py, x, y);
+      else if (t === T.STEEL) ctx.drawImage(PAT.steel, (x % 2) * 8, (y % 2) * 8, 8, 8, px, py, 8, 8);
+      else if (t === T.ICE) ctx.drawImage(PAT.ice, (x % 4) * 8, (y % 4) * 8, 8, 8, px, py, 8, 8);
+      else if (t === T.WATER) this.waterUnits.push([x, y]);
+      else if (t === T.TREE) this.forestUnits.push([x, y]);
+    }
+    this.dirty = false;
+  }
+  // Лес рисуется ПОВЕРХ танков — в нём можно спрятаться
+  drawFront(ctx, ox, oy) {
+    for (const [x, y] of this.forestUnits)
+      ctx.drawImage(PAT.forest, (x % 4) * 8, (y % 4) * 8, 8, 8, ox + x * 8, oy + y * 8, 8, 8);
+  }
+}
+
+/* ============================== 10. ИГРОВЫЕ ОБЪЕКТЫ ============================== */
+const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];   // 0=вверх 1=вправо 2=вниз 3=влево
+
+/* --- Пуля --- */
+class Bullet {
+  constructor(owner, x, y, dir, power, style) {
+    this.owner = owner; this.x = x; this.y = y; this.w = 8; this.h = 8;
+    this.dir = dir; this.power = power; this.style = style || "normal";
+    this.speed = owner.isPlayer ? (owner.stars >= 1 ? 6 : 4.2)
+      : (ENEMY_TYPES[owner.kind] && ENEMY_TYPES[owner.kind].fastBullet ? 6 : 4);
+    this.dead = false; this.traveled = 0;
+    this.maxRange = 9999;
+    if (owner.isPlayer) this.maxRange = 640 * (1 + (SAVE.upgrades.range || 0) * 0.15);
+    this.trail = [];
+  }
+  update(g) {
+    for (let i = 0; i < 2; i++) {   // подшаг для точной коллизии на высокой скорости
+      const st = this.speed / 2;
+      this.x += DX[this.dir] * st; this.y += DY[this.dir] * st; this.traveled += st;
+      if (this.traveled > this.maxRange) { this.dead = true; return; }
+      const r = g.field.bulletHit(this, this.power);
+      if (r.base && !g.field.baseDead) { g.baseDestroyed(); this.dead = true; return; }
+      if (r.destroyed) { g.stats.blocks += r.destroyed; SAVE.stats.blocks += r.destroyed; }
+      if (r.hit) {
+        this.dead = true;
+        g.addExplosion(this.x - 8, this.y - 8, "small");
+        // Звук зависит от препятствия: сталь/край поля звучат глуше и громче
+        if (this.owner.isPlayer) (r.steel && !r.destroyed) ? Audio_.hitSteel() : Audio_.hitBrick();
+        return;
+      }
+    }
+    this.trail.push({ x: this.x, y: this.y }); if (this.trail.length > 6) this.trail.shift();
+  }
+  draw(ctx, ox, oy) {
+    const x = ox + this.x, y = oy + this.y;
+    const S = this.style;
+    if (S === "laser") {           // лазер — красный луч
+      ctx.fillStyle = "rgba(255,60,60,.5)";
+      this.trail.forEach((t, i) => ctx.fillRect(ox + t.x + 2, oy + t.y + 2, 4, 4));
+      ctx.fillStyle = "#ff4040"; ctx.fillRect(x + 1, y + 1, 6, 6);
+      ctx.fillStyle = "#fff"; ctx.fillRect(x + 3, y + 3, 2, 2);
+    } else if (S === "plasma") {   // плазма — зелёная с искрами
+      ctx.fillStyle = "#70ff70"; ctx.fillRect(x + 1, y + 1, 6, 6);
+      ctx.fillStyle = "#c0ffc0";
+      for (let i = 0; i < 3; i++) ctx.fillRect(x + rnd(8) - 2, y + rnd(8) - 2, 2, 2);
+    } else if (S === "fire") {     // огненный трассер
+      this.trail.forEach((t, i) => {
+        ctx.fillStyle = i > 3 ? "#ffd020" : "#e05010";
+        ctx.fillRect(ox + t.x + 2, oy + t.y + 2, 4, 4);
+      });
+      ctx.fillStyle = "#fff060"; ctx.fillRect(x + 1, y + 1, 6, 6);
+    } else if (S === "electro") {  // электрический — синие разряды
+      ctx.fillStyle = "#40a0ff"; ctx.fillRect(x + 1, y + 1, 6, 6);
+      ctx.strokeStyle = "#c0e0ff"; ctx.lineWidth = 1; ctx.beginPath();
+      for (let i = 0; i < 3; i++) { ctx.moveTo(x + 4, y + 4); ctx.lineTo(x + 4 + rnd(14) - 7, y + 4 + rnd(14) - 7); }
+      ctx.stroke();
+    } else if (S === "firework") {
+      ctx.fillStyle = ["#ff40ff", "#40ffff", "#ffff40"][Math.floor(now() / 60) % 3];
+      ctx.fillRect(x, y, 8, 8); ctx.fillStyle = "#fff"; ctx.fillRect(x + 2, y + 2, 4, 4);
+    } else {                        // обычный снаряд
+      ctx.fillStyle = "#e8e8e8"; ctx.fillRect(x + 2, y + 2, 4, 4);
+      ctx.fillStyle = "#a0a0a0";
+      if (this.dir === 0) ctx.fillRect(x + 3, y, 2, 2); if (this.dir === 2) ctx.fillRect(x + 3, y + 6, 2, 2);
+      if (this.dir === 3) ctx.fillRect(x, y + 3, 2, 2); if (this.dir === 1) ctx.fillRect(x + 6, y + 3, 2, 2);
+    }
+  }
+}
+
+/* --- Базовый танк --- */
+class Tank {
+  constructor(g, x, y, dir) {
+    this.g = g; this.x = x; this.y = y; this.w = 32; this.h = 32;
+    this.dir = dir; this.moving = false; this.speed = 1.0;
+    this.bullets = 0; this.maxBullets = 1; this.cooldown = 0; this.reloadTime = 22;
+    this.dead = false; this.stars = 0; this.hp = 1; this.armor = 0;
+    this.trackPhase = 0; this.spawnTimer = 0; this.shield = 0; this.slide = 0;
+    this.isPlayer = false; this.colors = TANK_COLORS.e_basic;
+  }
+  rect() { return { x: this.x, y: this.y, w: this.w, h: this.h }; }
+  // Попытка движения; возвращает true если сдвинулись
+  tryMove(dir, dist) {
+    const nx = this.x + DX[dir] * dist, ny = this.y + DY[dir] * dist;
+    // Скругление к сетке 8px при повороте (как в оригинале)
+    let ax = nx, ay = ny;
+    if (dir === 0 || dir === 2) ax = Math.round(nx / 8) * 8;
+    else ay = Math.round(ny / 8) * 8;
+    if (!this.g.field.canMove(ax, ay, this.w, this.h)) return false;
+    if (this.g.tankAt(ax, ay, this)) return false;
+    this.x = ax; this.y = ay;
+    return true;
+  }
+  move(dir) {
+    const turned = this.dir !== dir;
+    this.dir = dir; this.moving = true;
+    const ok = this.tryMove(dir, this.speed);
+    if (ok) this.trackPhase += this.speed * 0.12;
+    // Лёд: инерция скольжения
+    if (this.g.field.onIce(this.x, this.y, this.w, this.h)) this.slide = 12;
+    return ok;
+  }
+  updateSlide() {
+    if (this.slide > 0 && !this.moving) { this.slide--; this.tryMove(this.dir, this.speed * 0.7); }
+  }
+  fire() {
+    if (this.cooldown > 0 || this.bullets >= this.maxBullets) return null;
+    const cx = this.x + 16 + DX[this.dir] * 14 - 4, cy = this.y + 16 + DY[this.dir] * 14 - 4;
+    const b = new Bullet(this, cx, cy, this.dir, this.isPlayer ? (this.stars >= 3 ? 2 : 1) : (this.kind === "boss" ? 2 : 1),
+      this.isPlayer ? SAVE.equipped.shot : "normal");
+    this.bullets++; this.cooldown = this.reloadTime;
+    this.g.bullets.push(b);
+    if (this.isPlayer) {
+      SAVE.stats.bulletsFired++;
+      const s = SAVE.equipped.shot;
+      if (s === "laser") Audio_.laser(); else if (s === "plasma") Audio_.plasma(); else Audio_.shoot();
+    } else Audio_.shootEnemy();
+    return b;
+  }
+  takeDamage(dmg, from) {
+    if (this.shield > 0) return false;
+    if (this.armor > 0) { this.armor--; Audio_.hitWall(); return false; }
+    this.hp -= dmg;
+    if (this.hp <= 0) { this.dead = true; return true; }
+    Audio_.hitWall();
+    return false;
+  }
+  draw(ctx, ox, oy) {
+    if (this.spawnTimer > 0) { this.drawSpawn(ctx, ox, oy); return; }
+    drawTank(ctx, ox + this.x, oy + this.y, this.dir, this.colors, {
+      trackPhase: Math.floor(this.trackPhase) % 2, stars: this.isPlayer ? this.stars : 0,
+      shield: this.shield > 0, armor: this.armor, skin: this.isPlayer ? SAVE.equipped.skin : null,
+      skinData: this.isPlayer ? this.skinData : null
+    });
+  }
+  // Анимация появления (вращающаяся звезда)
+  drawSpawn(ctx, ox, oy) {
+    const p = Math.floor(this.spawnTimer / 4) % 4;
+    const cx = ox + this.x + 16, cy = oy + this.y + 16;
+    ctx.fillStyle = p % 2 ? "#f8f8f8" : "#5da0f0";
+    const r = [4, 10, 14, 8][p];
+    ctx.fillRect(cx - r, cy - 2, r * 2, 4); ctx.fillRect(cx - 2, cy - r, 4, r * 2);
+    ctx.fillRect(cx - r / 2, cy - r / 2, r, r);
+  }
+}
+
+/* --- Игрок --- */
+class Player extends Tank {
+  constructor(g, idx, x, y) {
+    super(g, x, y, 0);
+    this.isPlayer = true; this.idx = idx;
+    this.startX = x; this.startY = y;
+    this.lives = g.mode === "survival" ? 1 : 3;
+    this.stars = 0; this.spawnTimer = 60; this.shield = 180;
+    this.score = 0; this.applyUpgrades();
+    this.colors = idx === 0 ? TANK_COLORS[SAVE.equipped.color] || TANK_COLORS.yellow : TANK_COLORS.green;
+    if (idx === 1) this.colors = TANK_COLORS.green;
+    this.skinData = SAVE.equipped.skin === "flag"
+      ? (FLAGS.find(f => f.id === SAVE.equipped.flag) || FLAGS[0]).c
+      : (SAVE.equipped.skin === "custom" ? SAVE.equipped.custom : null);
+    this.trail = [];
+  }
+  applyUpgrades() {
+    const u = SAVE.upgrades;
+    this.baseSpeed = 1.05 * (1 + (u.speed || 0) * 0.10);
+    this.speed = this.baseSpeed;
+    this.armorMax = (u.armor || 0); this.armor = this.armorMax;
+    this.reloadTime = Math.round(22 * (1 - (u.reload || 0) * 0.20));
+  }
+  update(input) {
+    if (this.spawnTimer > 0) { this.spawnTimer--; return; }
+    if (this.cooldown > 0) this.cooldown--;
+    if (this.shield > 0) this.shield--;
+    this.moving = false;
+    const i = input;
+    let d = -1;
+    if (i.up) d = 0; else if (i.right) d = 1; else if (i.down) d = 2; else if (i.left) d = 3;
+    if (d >= 0) { this.move(d); }
+    else this.updateSlide();
+    if (i.fire) this.fire();
+    // Скорость зависит от «звёзд» прокачки
+    this.speed = this.baseSpeed * (1 + this.stars * 0.12);
+    this.maxBullets = this.stars >= 2 ? 2 : 1;
+    // След от танка (купленный эффект)
+    if (this.moving && SAVE.owned.effect.includes("trail") && chance(0.4))
+      this.g.particles.push({ x: this.x + 8 + rnd(16), y: this.y + 8 + rnd(16), vx: 0, vy: 0, life: 20, c: "#808080", s: 3 });
+  }
+  powerUp(type) {
+    if (type === "star") { this.stars = Math.min(3, this.stars + 1); Audio_.bonus(); }
+    else if (type === "tank") { this.lives++; Audio_.bonus(); }
+    else if (type === "shield") { this.shield = 300; Audio_.bonus(); }   // 5 секунд неуязвимости
+    else if (type === "shovel") { this.g.fortifyBase(); Audio_.bonus(); }
+    else if (type === "coin") { addCoins(25, "бонус-монета"); }
+    SAVE.stats.bonusesTaken[type] = (SAVE.stats.bonusesTaken[type] || 0) + 1;
+  }
+  respawn() {
+    this.x = this.startX; this.y = this.startY; this.dir = 0;
+    this.dead = false; this.hp = 1; this.spawnTimer = 60; this.shield = 180;
+    this.stars = Math.max(0, this.stars - 1);
+    this.armor = this.armorMax; this.bullets = 0;
+  }
+}
+
+/* --- Враг --- */
+const ENEMY_TYPES = {
+  // Оригинальные 4 типа врагов Battle City + босс нашего расширения
+  basic: { speed: 0.85, hp: 1, score: 100, coins: 10, colors: "e_basic", fireRate: 0.006 },
+  fast: { speed: 1.75, hp: 1, score: 200, coins: 25, colors: "e_fast", fireRate: 0.007 },
+  power: { speed: 1.0, hp: 1, score: 300, coins: 40, colors: "e_power", fireRate: 0.013, fastBullet: true },
+  armor: { speed: 0.85, hp: 4, score: 400, coins: 60, colors: "e_armor", fireRate: 0.010 },
+  boss: { speed: 0.7, hp: 5, score: 1000, coins: 50, colors: "e_boss", fireRate: 0.021 }
+};
+// Броневой танк в оригинале меняет цвет по мере повреждений
+const ARMOR_COLORS = ["e_armor_1", "e_armor_2", "e_armor_3", "e_armor"];
+class Enemy extends Tank {
+  constructor(g, x, y, kind, bonus) {
+    super(g, x, y, 2);
+    const t = ENEMY_TYPES[kind] || ENEMY_TYPES.basic;
+    this.kind = kind; this.speed = t.speed * (1 + g.difficulty * 0.15);
+    this.hp = t.hp; this.maxHp = t.hp; this.score = t.score; this.coins = t.coins;
+    this.colors = TANK_COLORS[t.colors]; this.fireRate = t.fireRate;
+    this.bonus = !!bonus;                 // «красный» танк с бонусом
+    this.spawnTimer = 60; this.dirTimer = 0; this.reloadTime = kind === "boss" ? 26 : 40;
+    this.maxBullets = kind === "boss" ? 2 : 1;
+    this.frozen = 0;
+  }
+  update() {
+    if (this.spawnTimer > 0) { this.spawnTimer--; return; }
+    if (this.cooldown > 0) this.cooldown--;
+    if (this.frozen > 0) { this.frozen--; return; }
+    this.moving = true;
+    if (this.dirTimer-- <= 0) this.chooseDir();
+    if (!this.move(this.dir)) this.dirTimer = 0;   // упёрлись — меняем направление
+    if (Math.random() < this.fireRate * (1 + this.g.difficulty * 0.4)) this.fire();
+  }
+  /* ИИ выбора направления — как в оригинале: движение преимущественно случайное
+     со смещением вниз, и лишь изредка танк идёт целенаправленно к игроку или к орлу.
+     Раньше враг шёл к базе в 55% случаев и сносил её за минуту — это не поведение
+     оригинальной игры.                                                              */
+  chooseDir() {
+    this.dirTimer = 30 + rnd(60);
+    // Доля осмысленных ходов растёт со сложностью, но остаётся небольшой
+    const aim = 0.12 + this.g.difficulty * 0.06;
+    if (chance(aim)) {
+      const target = chance(0.35) ? this.g.baseTarget() : this.g.nearestPlayer(this);
+      if (target) {
+        const dx = target.x - this.x, dy = target.y - this.y;
+        const opts = [];
+        if (Math.abs(dx) > 8) opts.push(dx > 0 ? 1 : 3);
+        if (Math.abs(dy) > 8) opts.push(dy > 0 ? 2 : 0);
+        if (opts.length) { this.dir = pick(opts); return; }
+      }
+    }
+    // Иначе — равномерно случайное направление. Любой перекос «вниз» превращает
+    // врагов в поток, идущий прямо на орла: при уклоне 50% база гибла за минуту
+    // даже без участия игрока (замерено), при равномерном выборе — выживает.
+    this.dir = rnd(4);
+  }
+  draw(ctx, ox, oy) {
+    if (this.spawnTimer > 0) { this.drawSpawn(ctx, ox, oy); return; }
+    // Бонусный танк мигает красным
+    let base = this.colors;
+    if (this.kind === "armor") base = TANK_COLORS[ARMOR_COLORS[clamp(this.hp - 1, 0, 3)]];
+    const c = this.bonus && Math.floor(now() / 120) % 2 ? TANK_COLORS.bonusFlash : base;
+    drawTank(ctx, ox + this.x, oy + this.y, this.dir, c, { trackPhase: Math.floor(this.trackPhase) % 2 });
+    if (this.kind === "armor") { // броневой: цвет по остатку HP, полоска не нужна
+      return;
+    }
+    if (this.kind === "boss") { // полоска HP
+      const w = 28 * (this.hp / this.maxHp);
+      ctx.fillStyle = "#400"; ctx.fillRect(ox + this.x + 2, oy + this.y - 5, 28, 3);
+      ctx.fillStyle = this.hp > this.maxHp / 2 ? "#40d040" : "#e04040";
+      ctx.fillRect(ox + this.x + 2, oy + this.y - 5, w, 3);
+    }
+  }
+}
+
+/* --- Бонус --- */
+const POWERUP_TYPES = ["star", "tank", "shield", "shovel", "coin"];
+class PowerUp {
+  constructor(x, y, type) { this.x = x; this.y = y; this.w = 32; this.h = 32; this.type = type; this.life = 900; this.dead = false; }
+  update() { if (--this.life <= 0) this.dead = true; }
+  draw(ctx, ox, oy) {
+    if (Math.floor(this.life / 8) % 2 === 0 && this.life < 180) return;   // мигание перед исчезновением
+    const x = ox + this.x, y = oy + this.y, s = 2;
+    const px = (a, b, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x + a * s, y + b * s, w * s, h * s); };
+    px(0, 0, 16, 16, "#000"); px(1, 1, 14, 14, "#f8f8f8"); px(2, 2, 12, 12, "#000");
+    const t = this.type;
+    if (t === "star") { px(7, 3, 2, 3, "#f0c020"); px(4, 6, 8, 2, "#f0c020"); px(5, 8, 6, 4, "#f0c020"); px(4, 12, 3, 1, "#f0c020"); px(9, 12, 3, 1, "#f0c020"); }
+    else if (t === "tank") { px(4, 5, 8, 6, "#70B050"); px(3, 5, 1, 6, "#70B050"); px(12, 5, 1, 6, "#70B050"); px(7, 2, 2, 4, "#70B050"); }
+    else if (t === "shield") { px(4, 3, 8, 6, "#5da0f0"); px(5, 9, 6, 2, "#5da0f0"); px(7, 11, 2, 2, "#5da0f0"); }
+    else if (t === "shovel") { px(7, 2, 2, 7, "#C09848"); px(5, 9, 6, 4, "#C09848"); }
+    else if (t === "coin") { px(4, 3, 8, 10, "#f0c020"); px(6, 5, 4, 6, "#a07800"); px(5, 4, 1, 8, "#fff090"); }
+  }
+}
+
+/* --- Взрыв (6 фаз) --- */
+class Explosion {
+  constructor(x, y, big, colorful) {
+    this.x = x; this.y = y; this.big = big; this.frame = 0; this.dead = false;
+    this.colorful = colorful;
+    this.tint = colorful ? pick(["#ff40ff", "#40ffff", "#ffff40", "#40ff40", "#ff8040"]) : null;
+  }
+  update() { this.frame += 0.35; if (this.frame >= 6) this.dead = true; }
+  draw(ctx, ox, oy) {
+    const f = Math.floor(this.frame), x = ox + this.x, y = oy + this.y;
+    const sizes = [8, 14, 20, 26, 20, 12];
+    const r = sizes[clamp(f, 0, 5)] * (this.big ? 1.6 : 1);
+    const cx = x + 16, cy = y + 16;
+    const c1 = this.tint || "#f0c020", c2 = this.tint || "#e05010", c3 = "#f8f8f8";
+    ctx.fillStyle = c2; ctx.fillRect(cx - r / 2, cy - r / 2, r, r);
+    ctx.fillStyle = c1; ctx.fillRect(cx - r / 3, cy - r / 2.2, r / 1.5, r / 1.1);
+    if (f < 3) { ctx.fillStyle = c3; ctx.fillRect(cx - r / 6, cy - r / 6, r / 3, r / 3); }
+    // «Осколки» на последних кадрах
+    if (f >= 3) { ctx.fillStyle = c2; for (let i = 0; i < 4; i++) ctx.fillRect(cx + Math.cos(i * 1.6) * r, cy + Math.sin(i * 1.6) * r, 3, 3); }
+  }
+}
+
+/* ============================== 11. УПРАВЛЕНИЕ (клавиатура / геймпад / сенсор / голос) ============================== */
+const Input = {
+  keys: {},
+  p1: { up: 0, down: 0, left: 0, right: 0, fire: 0 },
+  p2: { up: 0, down: 0, left: 0, right: 0, fire: 0 },
+  touch: { up: 0, down: 0, left: 0, right: 0, fire: 0, active: false },
+  voice: { dir: -1, fire: false, until: 0 },
+  init() {
+    window.addEventListener("keydown", e => {
+      this.keys[e.code] = 1;
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space", "Enter", "Tab"].includes(e.code)) e.preventDefault();
+      Audio_.init(); Audio_.resume();
+      UI.onKey(e);
+    });
+    window.addEventListener("keyup", e => { this.keys[e.code] = 0; });
+    window.addEventListener("blur", () => { this.keys = {}; });
+    this.initTouch();
+  },
+  poll() {
+    const k = this.keys;
+    // Игрок 1: стрелки + Пробел
+    this.p1.up = k["ArrowUp"] || 0; this.p1.down = k["ArrowDown"] || 0;
+    this.p1.left = k["ArrowLeft"] || 0; this.p1.right = k["ArrowRight"] || 0;
+    this.p1.fire = k["Space"] || 0;
+    // Игрок 2: WASD + Enter
+    this.p2.up = k["KeyW"] || 0; this.p2.down = k["KeyS"] || 0;
+    this.p2.left = k["KeyA"] || 0; this.p2.right = k["KeyD"] || 0;
+    this.p2.fire = k["Enter"] || 0;
+    // Сенсор и голос подмешиваются к игроку 1
+    if (this.touch.active) {
+      this.p1.up |= this.touch.up; this.p1.down |= this.touch.down;
+      this.p1.left |= this.touch.left; this.p1.right |= this.touch.right; this.p1.fire |= this.touch.fire;
+    }
+    if (this.voice.until > now()) {
+      if (this.voice.dir === 0) this.p1.up = 1; if (this.voice.dir === 1) this.p1.right = 1;
+      if (this.voice.dir === 2) this.p1.down = 1; if (this.voice.dir === 3) this.p1.left = 1;
+      if (this.voice.fire) { this.p1.fire = 1; this.voice.fire = false; }
+    }
+    this.pollGamepad();
+  },
+  // Gamepad API
+  pollGamepad() {
+    if (!navigator.getGamepads) return;
+    const pads = navigator.getGamepads();
+    for (let i = 0; i < Math.min(2, pads.length); i++) {
+      const gp = pads[i]; if (!gp) continue;
+      const t = i === 0 ? this.p1 : this.p2;
+      const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
+      if (ay < -0.4 || gp.buttons[12]?.pressed) t.up = 1;
+      if (ay > 0.4 || gp.buttons[13]?.pressed) t.down = 1;
+      if (ax < -0.4 || gp.buttons[14]?.pressed) t.left = 1;
+      if (ax > 0.4 || gp.buttons[15]?.pressed) t.right = 1;
+      if (gp.buttons[0]?.pressed || gp.buttons[2]?.pressed || gp.buttons[7]?.pressed) t.fire = 1;
+      if (gp.buttons[9]?.pressed && Game.cur) Game.cur.togglePause();
+    }
+  },
+  // Джойстик на экране
+  initTouch() {
+    const base = $("#stickBase"), knob = $("#stickKnob"), fire = $("#btnFire"), pause = $("#btnPause");
+    let id = null, cx = 0, cy = 0;
+    const set = (dx, dy) => {
+      const d = Math.hypot(dx, dy);
+      this.touch.up = this.touch.down = this.touch.left = this.touch.right = 0;
+      if (d > 18) {   // мёртвая зона
+        if (Math.abs(dx) > Math.abs(dy)) this.touch[dx > 0 ? "right" : "left"] = 1;
+        else this.touch[dy > 0 ? "down" : "up"] = 1;
+      }
+      const m = Math.min(40, d), a = Math.atan2(dy, dx);
+      knob.style.left = (40 + Math.cos(a) * m) + "px"; knob.style.top = (40 + Math.sin(a) * m) + "px";
+    };
+    base.addEventListener("touchstart", e => {
+      e.preventDefault(); const t = e.changedTouches[0]; id = t.identifier;
+      const r = base.getBoundingClientRect(); cx = r.left + r.width / 2; cy = r.top + r.height / 2;
+      this.touch.active = true; set(t.clientX - cx, t.clientY - cy);
+    }, { passive: false });
+    base.addEventListener("touchmove", e => {
+      e.preventDefault();
+      for (const t of e.changedTouches) if (t.identifier === id) set(t.clientX - cx, t.clientY - cy);
+    }, { passive: false });
+    const end = e => {
+      for (const t of e.changedTouches) if (t.identifier === id) {
+        id = null; this.touch.up = this.touch.down = this.touch.left = this.touch.right = 0;
+        knob.style.left = "40px"; knob.style.top = "40px";
+      }
+    };
+    base.addEventListener("touchend", end); base.addEventListener("touchcancel", end);
+    const fdown = e => { e.preventDefault(); this.touch.active = true; this.touch.fire = 1; Audio_.init(); Audio_.resume(); };
+    const fup = e => { e.preventDefault(); this.touch.fire = 0; };
+    fire.addEventListener("touchstart", fdown, { passive: false });
+    fire.addEventListener("touchend", fup); fire.addEventListener("mousedown", fdown); fire.addEventListener("mouseup", fup);
+    pause.addEventListener("click", () => { if (Game.cur) Game.cur.togglePause(); else UI.back(); });
+  }
+};
+
+/* --- Голосовое управление (Web Speech API) --- */
+const Voice = {
+  rec: null, on: false,
+  toggle() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { toast("Голосовое управление не поддерживается браузером", "#d05050"); return false; }
+    if (this.on) { try { this.rec.stop(); } catch (e) { } this.on = false; toast("Голос выключен"); return false; }
+    this.rec = new SR(); this.rec.lang = "ru-RU"; this.rec.continuous = true; this.rec.interimResults = true;
+    this.rec.onresult = e => {
+      const txt = e.results[e.results.length - 1][0].transcript.toLowerCase().trim();
+      const v = Input.voice; v.until = now() + 900;
+      if (/вперёд|вперед|верх|вверх/.test(txt)) v.dir = 0;
+      else if (/назад|вниз/.test(txt)) v.dir = 2;
+      else if (/влево|лево/.test(txt)) v.dir = 3;
+      else if (/вправо|право/.test(txt)) v.dir = 1;
+      else if (/стой|стоп/.test(txt)) { v.dir = -1; v.until = 0; }
+      if (/стреляй|огонь|пли/.test(txt)) v.fire = true;
+    };
+    this.rec.onerror = () => { };
+    this.rec.onend = () => { if (this.on) try { this.rec.start(); } catch (e) { } };
+    try { this.rec.start(); this.on = true; toast("Голос включён: «вперёд», «назад», «стреляй»", "#70B050"); }
+    catch (e) { toast("Не удалось запустить микрофон", "#d05050"); }
+    return this.on;
+  }
+};
+
+/* ============================== 12. ПОГОДА И ВРЕМЯ СУТОК ============================== */
+const WEATHER = ["none", "none", "fog", "rain", "night"];
+class Weather {
+  constructor(kind) {
+    this.kind = kind; this.drops = [];
+    if (kind === "rain") for (let i = 0; i < 90; i++)
+      this.drops.push({ x: rnd(CFG.FIELD), y: rnd(CFG.FIELD), s: 4 + rnd(5) });
+    this.fogPhase = 0;
+  }
+  update() {
+    if (this.kind === "rain") for (const d of this.drops) {
+      d.y += d.s; d.x += 1; if (d.y > CFG.FIELD) { d.y = -8; d.x = rnd(CFG.FIELD); }
+    }
+    this.fogPhase += 0.3;
+  }
+  draw(ctx, ox, oy, players) {
+    if (this.kind === "none") return;
+    ctx.save(); ctx.beginPath(); ctx.rect(ox, oy, CFG.FIELD, CFG.FIELD); ctx.clip();
+    if (this.kind === "rain") {
+      ctx.strokeStyle = "rgba(150,190,255,.45)"; ctx.lineWidth = 1; ctx.beginPath();
+      for (const d of this.drops) { ctx.moveTo(ox + d.x, oy + d.y); ctx.lineTo(ox + d.x - 2, oy + d.y + 7); }
+      ctx.stroke();
+      ctx.fillStyle = "rgba(20,30,60,.25)"; ctx.fillRect(ox, oy, CFG.FIELD, CFG.FIELD);
+    } else if (this.kind === "fog") {
+      ctx.fillStyle = "rgba(190,190,200,.30)"; ctx.fillRect(ox, oy, CFG.FIELD, CFG.FIELD);
+      ctx.fillStyle = "rgba(220,220,230,.18)";
+      for (let i = 0; i < 6; i++) {
+        const y = (i * 70 + this.fogPhase) % (CFG.FIELD + 60) - 30;
+        ctx.fillRect(ox, oy + y, CFG.FIELD, 26);
+      }
+    } else if (this.kind === "night") {
+      // Ночь: затемнение с «фонариками» вокруг игроков.
+      // ВАЖНО: слой темноты собирается в отдельном холсте С АЛЬФОЙ. На основном холсте
+      // (он создан с alpha:false) destination-out даёт чёрный цвет, а не прозрачность,
+      // из-за чего вместо фонарика получалось чёрное пятно, скрывавшее танк.
+      if (!this.dark) {
+        this.dark = document.createElement("canvas");
+        this.dark.width = CFG.FIELD; this.dark.height = CFG.FIELD;
+        this.dctx = this.dark.getContext("2d");
+      }
+      const d = this.dctx;
+      d.globalCompositeOperation = "source-over";
+      d.clearRect(0, 0, CFG.FIELD, CFG.FIELD);
+      d.fillStyle = "rgba(0,0,20,.78)"; d.fillRect(0, 0, CFG.FIELD, CFG.FIELD);
+      d.globalCompositeOperation = "destination-out";
+      for (const p of players) {
+        if (!p || p.dead || p.lives < 0) continue;
+        const cx = p.x + 16, cy = p.y + 16;
+        const gr = d.createRadialGradient(cx, cy, 10, cx, cy, 96);
+        gr.addColorStop(0, "rgba(0,0,0,1)"); gr.addColorStop(0.55, "rgba(0,0,0,0.85)");
+        gr.addColorStop(1, "rgba(0,0,0,0)");
+        d.fillStyle = gr; d.fillRect(cx - 96, cy - 96, 192, 192);
+      }
+      d.globalCompositeOperation = "source-over";
+      ctx.drawImage(this.dark, ox, oy);
+    }
+    ctx.restore();
+  }
+  label() { return { none: "", fog: "FOG", rain: "RAIN", night: "NIGHT" }[this.kind]; }  // латиница: в пиксельном шрифте нет кириллицы
+}
+
+/* ============================== 13. ЯДРО ИГРЫ ============================== */
+class Game {
+  static cur = null;
+  constructor(opts) {
+    this.mode = opts.mode || "1p";            // 1p | 2p | endless | survival | ctf | boss | custom
+    this.levelIndex = opts.level || 1;
+    this.customRows = opts.rows || null;      // карта из редактора
+    this.twoPlayers = (this.mode === "2p" || this.mode === "ctf" || opts.two);
+    this.field = new Field();
+    this.players = []; this.enemies = []; this.bullets = [];
+    this.explosions = []; this.powerups = []; this.particles = [];
+    this.state = "intro"; this.timer = 0; this.frame = 0;
+    this.score = 0; this.wave = 1; this.difficulty = 0;
+    this.startTime = now(); this.levelStartTime = now();
+    this.coinsEarned = 0; this.lostLifeThisLevel = false;
+    this.stats = { kills: 0, blocks: 0, byType: { basic: 0, fast: 0, power: 0, boss: 0 } };
+    this.paused = false;
+    this.flags = null;
+    this.shovelTimer = 0;
+    this.startLevel(this.levelIndex);
+    SAVE.stats.games++; persist();
+    Game.cur = this;
+  }
+  /* --- Инициализация уровня --- */
+  startLevel(n) {
+    this.levelIndex = n;
+    const rows = this.customRows || LEVELS[(n - 1) % LEVELS.length];
+    this.field.load(rows);
+    this.difficulty = Math.min(2, (n - 1) / 20 + (this.wave - 1) * 0.2);
+    this.weather = new Weather(SAVE.settings.weather ? pick(WEATHER) : "none");
+    // Игроки
+    const keepLives = this.players.map(p => p.lives), keepScore = this.players.map(p => p.score);
+    this.players = [new Player(this, 0, 128, 384)];
+    if (this.twoPlayers) this.players.push(new Player(this, 1, 256, 384));
+    this.players.forEach((p, i) => {
+      if (keepLives[i] !== undefined) { p.lives = keepLives[i]; p.score = keepScore[i]; }
+    });
+    // Очередь врагов
+    this.enemyQueue = this.buildQueue(n);
+    this.enemiesLeft = this.enemyQueue.length;
+    this.enemies = []; this.bullets = []; this.powerups = []; this.explosions = []; this.particles = [];
+    this.spawnPoint = 0; this.spawnTimer = 60;
+    // Первый уровень партии открывается стартовой темой оригинала (4.3 с)
+    const firstStage = !this.startedOnce;
+    this.startedOnce = true;
+    this.state = "intro"; this.timer = firstStage ? 285 : 130;
+    this.levelStartTime = now(); this.lostLifeThisLevel = false;
+    this.shovelTimer = 0;
+    // Режим «Захват флага»
+    if (this.mode === "ctf") {
+      this.flags = [
+        { x: 32, y: 32, owner: 1, taken: null, home: { x: 32, y: 32 } },     // флаг игрока 2 (слева сверху)
+        { x: 352, y: 32, owner: 0, taken: null, home: { x: 352, y: 32 } }   // флаг игрока 1 (справа сверху)
+      ];
+      this.ctfScore = [0, 0];
+    }
+    firstStage ? Audio_.stageStart() : Audio_.start();
+  }
+  // Состав волны врагов — из оригинальной игры (20 танков на уровень)
+  buildQueue(n) {
+    const q = [];
+    const spec = ORIGINAL_BOTS[(n - 1) % ORIGINAL_BOTS.length] || ["18*basic", "2*fast"];
+    // Распаковываем группы вида "18*basic" и равномерно перемешиваем типы по волне
+    const groups = spec.map(s => { const [c, k] = s.split("*"); return { kind: k, left: +c }; });
+    const total = groups.reduce((a, g) => a + g.left, 0);
+    for (let i = 0; i < total; i++) {
+      // берём тип, у которого «долг» по расписанию наибольший
+      let best = null, bestScore = -1;
+      for (const g of groups) {
+        if (!g.left) continue;
+        const sc = g.left / (total - i);
+        if (sc > bestScore) { bestScore = sc; best = g; }
+      }
+      best.left--;
+      q.push({ kind: best.kind, bonus: (i === 3 || i === 10 || i === 17) });   // 4-й, 11-й и 18-й — с бонусом
+    }
+    // В бесконечном режиме и на поздних волнах усиливаем состав
+    if (this.mode === "endless" || this.mode === "survival") {
+      for (let i = 0; i < q.length; i++)
+        if (chance(Math.min(0.5, this.wave * 0.06)) && q[i].kind === "basic") q[i].kind = pick(["fast", "power", "armor"]);
+    }
+    if (n % 5 === 0 || this.mode === "boss") q.push({ kind: "boss", bonus: true });
+    if (this.mode === "ctf") return q.slice(0, 6);
+    return q;
+  }
+  /* --- Вспомогательные --- */
+  tankAt(x, y, self) {
+    const r = { x: x + 2, y: y + 2, w: 28, h: 28 };
+    for (const t of this.allTanks()) {
+      if (t === self || t.dead || t.spawnTimer > 0) continue;
+      if (hit(r, { x: t.x + 2, y: t.y + 2, w: 28, h: 28 })) return t;
+    }
+    return null;
+  }
+  allTanks() { return this.players.concat(this.enemies); }
+  alivePlayers() { return this.players.filter(p => !p.dead && p.spawnTimer <= 0); }
+  nearestPlayer(from) {
+    let best = null, bd = 1e9;
+    for (const p of this.players) {
+      if (p.dead) continue;
+      const d = Math.hypot(p.x - from.x, p.y - from.y);
+      if (d < bd) { bd = d; best = p; }
+    }
+    return best;
+  }
+  baseTarget() { return { x: this.field.baseX * CFG.UNIT, y: this.field.baseY * CFG.UNIT }; }
+  addExplosion(x, y, size) {
+    this.explosions.push(new Explosion(x, y, size === "big", SAVE.owned.effect.includes("boom")));
+    Audio_.explode(size === "big");
+  }
+  fortifyBase() { this.field.fortify(T.STEEL); this.shovelTimer = 20 * 60; }   // лопата: 20 секунд стали
+  baseDestroyed() {
+    if (this.field.baseDead) return;
+    this.field.destroyBase();
+    this.addExplosion(this.field.baseX * CFG.UNIT, this.field.baseY * CFG.UNIT, "big");
+    this.gameOver(false);
+  }
+  togglePause() {
+    if (this.state !== "play" && this.state !== "pause") return;
+    this.paused = !this.paused;
+    this.state = this.paused ? "pause" : "play";
+    Audio_.engine(false);
+    if (this.paused) Audio_.pauseSfx();
+  }
+  /* --- Главный апдейт --- */
+  update() {
+    this.frame++;
+    if (this.state === "intro") { if (--this.timer <= 0) this.state = "play"; return; }
+    if (this.state === "pause") return;
+    if (this.state === "clear" || this.state === "over") { this.timer--; return; }
+    Input.poll();
+    // Игроки
+    this.players.forEach((p, i) => {
+      if (p.dead || p.lives < 0) return;
+      p.update(i === 0 ? Input.p1 : Input.p2);
+    });
+    // Мотор гудит постоянно во время боя и меняет тон при движении (как в оригинале)
+    const anyMoving = this.players.some(p => !p.dead && p.lives >= 0 && p.moving);
+    Audio_.engine(Audio_.enabled && this.state === "play", anyMoving);
+    // Враги
+    for (const e of this.enemies) if (!e.dead) e.update();
+    // Пули
+    for (const b of this.bullets) if (!b.dead) b.update(this);
+    this.resolveBullets();
+    // Бонусы
+    for (const pu of this.powerups) {
+      pu.update();
+      for (const p of this.players) {
+        if (p.dead || p.spawnTimer > 0 || pu.dead) continue;
+        if (hit(pu, p.rect())) { p.powerUp(pu.type); pu.dead = true; this.score += 500; }
+      }
+    }
+    // Прочее
+    this.explosions.forEach(e => e.update());
+    this.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; });
+    this.weather.update();
+    if (this.shovelTimer > 0 && --this.shovelTimer === 0 && !this.field.baseDead) this.field.fortify(T.BRICK);
+    if (this.mode === "ctf") this.updateCTF();
+    // Уборка мёртвых
+    this.bullets = this.bullets.filter(b => !b.dead);
+    this.explosions = this.explosions.filter(e => !e.dead);
+    this.powerups = this.powerups.filter(p => !p.dead);
+    this.particles = this.particles.filter(p => p.life > 0);
+    this.enemies = this.enemies.filter(e => !e.dead);
+    // Спавн врагов
+    this.spawnEnemies();
+    // Условие завершения уровня
+    if (this.mode !== "ctf" && this.enemyQueue.length === 0 && this.enemies.length === 0 && this.state === "play")
+      this.levelComplete();
+    // Проверка жизней игроков
+    if (this.state === "play" && this.players.every(p => p.lives < 0)) this.gameOver(false);
+  }
+  /* Столкновения пуль с танками и другими пулями */
+  resolveBullets() {
+    for (const b of this.bullets) {
+      if (b.dead) continue;
+      // Пуля против пули
+      for (const b2 of this.bullets) {
+        if (b2 === b || b2.dead || b2.owner.isPlayer === b.owner.isPlayer) continue;
+        if (hit(b, b2)) { b.dead = b2.dead = true; b.owner.bullets--; b2.owner.bullets--; break; }
+      }
+      if (b.dead) continue;
+      for (const t of this.allTanks()) {
+        if (t === b.owner || t.dead || t.spawnTimer > 0) continue;
+        if (t.isPlayer === b.owner.isPlayer && this.mode !== "ctf") continue;   // не бьём своих (кроме CTF)
+        if (t.isPlayer === b.owner.isPlayer && t === b.owner) continue;
+        if (!hit(b, { x: t.x + 2, y: t.y + 2, w: 28, h: 28 })) continue;
+        b.dead = true; b.owner.bullets--;
+        const killed = t.takeDamage(1, b.owner);
+        if (b.style === "firework") this.fireworkBurst(b.x, b.y);
+        if (killed) {
+          if (t.isPlayer) this.playerKilled(t);
+          else this.enemyKilled(t, b.owner);
+        } else this.addExplosion(t.x, t.y, "small");
+        break;
+      }
+    }
+    // Синхронизация счётчика пуль (страховка)
+    for (const t of this.allTanks()) {
+      const c = this.bullets.filter(b => b.owner === t && !b.dead).length;
+      t.bullets = c;
+    }
+  }
+  fireworkBurst(x, y) {
+    for (let i = 0; i < 14; i++) {
+      const a = Math.random() * Math.PI * 2, s = 1 + Math.random() * 3;
+      this.particles.push({
+        x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 20 + rnd(15),
+        c: pick(["#ff40ff", "#40ffff", "#ffff40", "#ff8040", "#80ff80"]), s: 3
+      });
+    }
+  }
+  enemyKilled(e, killer) {
+    this.addExplosion(e.x, e.y, e.kind === "boss" ? "big" : "normal");
+    this.score += e.score;
+    if (killer && killer.isPlayer) killer.score += e.score;
+    this.stats.kills++; this.stats.byType[e.kind]++;
+    SAVE.stats.kills++;
+    SAVE.stats["kills" + e.kind[0].toUpperCase() + e.kind.slice(1)] =
+      (SAVE.stats["kills" + e.kind[0].toUpperCase() + e.kind.slice(1)] || 0) + 1;
+    // Монеты за врага (с премиум-множителем)
+    const c = Math.round(e.coins * premiumMult());
+    SAVE.coins += c; this.coinsEarned += c;
+    // Бонус выпадает из «красного» танка
+    if (e.bonus) this.dropPowerUp();
+    if (this.mode === "survival" && chance(0.25)) this.dropPowerUp();
+    this.enemiesLeft--;
+  }
+  dropPowerUp() {
+    const type = pick(POWERUP_TYPES);
+    const x = 32 + rnd(11) * 32, y = 32 + rnd(10) * 32;
+    this.powerups.push(new PowerUp(x, y, type));
+    Audio_.bonusAppear();
+  }
+  playerKilled(p) {
+    this.addExplosion(p.x, p.y, "big");   // 510 мс, как в оригинале
+    p.lives--; this.lostLifeThisLevel = true;
+    SAVE.stats.deaths++;
+    if (p.lives >= 0) setTimeout(() => { if (Game.cur === this) p.respawn(); }, 800);
+    else p.dead = true;
+  }
+  spawnEnemies() {
+    if (this.state !== "play" || !this.enemyQueue.length) return;
+    if (this.enemies.length >= CFG.MAX_ENEMIES_ON_SCREEN + Math.floor(this.difficulty)) return;
+    if (--this.spawnTimer > 0) return;
+    this.spawnTimer = Math.max(60, 190 - this.levelIndex * 3 - this.wave * 5);
+    const pts = [0, 192, 384];
+    const x = pts[this.spawnPoint % 3]; this.spawnPoint++;
+    if (this.tankAt(x, 0, null)) { this.spawnTimer = 30; return; }
+    const spec = this.enemyQueue.shift();
+    this.enemies.push(new Enemy(this, x, 0, spec.kind, spec.bonus));
+  }
+  /* --- Режим «Захват флага» --- */
+  updateCTF() {
+    for (const p of this.players) {
+      if (p.dead || p.spawnTimer > 0) continue;
+      for (const f of this.flags) {
+        if (f.taken === p) { f.x = p.x; f.y = p.y; continue; }
+        if (f.taken) continue;
+        if (f.owner !== p.idx && hit({ x: f.x, y: f.y, w: 24, h: 24 }, p.rect())) { f.taken = p; Audio_.bonus(); }
+      }
+      // Доставка на базу (нижняя часть своей половины)
+      const carried = this.flags.find(f => f.taken === p);
+      if (carried && p.y > 340 && Math.abs(p.x - p.startX) < 60) {
+        this.ctfScore[p.idx]++; carried.taken = null;
+        carried.x = carried.home.x; carried.y = carried.home.y;
+        Audio_.win(); toast(`ИГРОК ${p.idx + 1} ЗАХВАТИЛ ФЛАГ! ${this.ctfScore[0]}:${this.ctfScore[1]}`, "#f0c020");
+        if (this.ctfScore[p.idx] >= 3) this.gameOver(true);
+      }
+    }
+  }
+  /* --- Завершение уровня --- */
+  levelComplete() {
+    this.state = "clear"; this.timer = 100;
+    Audio_.engine(false); Audio_.win();
+    const dur = now() - this.levelStartTime;
+    // Награды
+    const lvlCoins = Math.round(100 * premiumMult());
+    SAVE.coins += lvlCoins; this.coinsEarned += lvlCoins;
+    let baseBonus = 0;
+    if (!this.field.baseDead) {
+      baseBonus = Math.round(50 * premiumMult());
+      SAVE.coins += baseBonus; this.coinsEarned += baseBonus;
+      SAVE.stats.basesSaved = (SAVE.stats.basesSaved || 0) + 1;
+    }
+    SAVE.stats.levels++;
+    if (this.twoPlayers) SAVE.stats.coopLevels++;
+    if (!this.lostLifeThisLevel) SAVE.stats.perfectLevels++;
+    if (dur < 60000) SAVE.stats.fastLevels++;
+    if (this.mode === "endless") SAVE.stats.endlessWaves = (SAVE.stats.endlessWaves || 0) + 1;
+    if (this.mode === "survival") SAVE.stats.survivalWaves = (SAVE.stats.survivalWaves || 0) + 1;
+    if (this.mode === "1p" || this.mode === "2p") SAVE.maxLevel = Math.max(SAVE.maxLevel, this.levelIndex);
+    SAVE.stats.playTime += dur;
+    this.lastLevelStats = { dur, lvlCoins, baseBonus };
+    Challenges.report(this, dur);
+    persist(); Ach.check();
+    setTimeout(() => { if (Game.cur === this) this.nextLevel(); }, 2600);
+  }
+  nextLevel() {
+    if (this.mode === "endless" || this.mode === "survival") {
+      this.wave++;
+      this.startLevel(((this.levelIndex) % CFG.TOTAL_LEVELS) + 1);
+    } else if (this.mode === "boss") {
+      this.wave++; this.startLevel(((this.levelIndex + 4) % CFG.TOTAL_LEVELS) + 1);
+    } else if (this.levelIndex >= CFG.TOTAL_LEVELS) {
+      this.gameOver(true);
+    } else {
+      this.customRows = null;
+      this.startLevel(this.levelIndex + 1);
+    }
+  }
+  /* --- Конец игры --- */
+  gameOver(victory) {
+    if (this.state === "over") return;
+    this.state = "over"; this.timer = 220; this.victory = victory;
+    Audio_.engine(false); victory ? Audio_.win() : Audio_.lose();
+    const total = this.score + this.players.reduce((a, p) => a + p.score, 0) * 0;
+    SAVE.stats.playTime += now() - this.levelStartTime;
+    SAVE.stats.totalScore += this.score;
+    SAVE.stats.bestScore = Math.max(SAVE.stats.bestScore, this.score);
+    victory ? SAVE.stats.wins++ : SAVE.stats.losses++;
+    LB.submit(SAVE.name, this.score, this.levelIndex);
+    persist(); Ach.check();
+    setTimeout(() => { if (Game.cur === this) { Game.cur = null; UI.showGameOver(this); } }, 3000);
+  }
+  /* ============================== ОТРИСОВКА ============================== */
+  draw(ctx) {
+    const ox = CFG.OX, oy = CFG.OY;
+    // Фон
+    ctx.fillStyle = PAL.bg; ctx.fillRect(0, 0, CFG.CW, CFG.CH);
+    ctx.fillStyle = "#000"; ctx.fillRect(ox, oy, CFG.FIELD, CFG.FIELD);
+    if (this.state === "intro") { this.drawIntro(ctx); this.drawHUD(ctx); return; }
+    this.field.drawBack(ctx, ox, oy);
+    // Бонусы под танками
+    this.powerups.forEach(p => p.draw(ctx, ox, oy));
+    // Флаги CTF
+    if (this.flags) this.flags.forEach((f, i) => {
+      ctx.fillStyle = i === 0 ? "#70B050" : "#C09848";
+      ctx.fillRect(ox + f.x + 8, oy + f.y + 2, 3, 22);
+      ctx.fillRect(ox + f.x + 11, oy + f.y + 3, 14, 10);
+    });
+    // Танки
+    this.enemies.forEach(e => e.draw(ctx, ox, oy));
+    this.players.forEach(p => { if (!p.dead && p.lives >= 0) p.draw(ctx, ox, oy); });
+    // Пули и эффекты
+    this.bullets.forEach(b => b.draw(ctx, ox, oy));
+    this.field.drawFront(ctx, ox, oy);   // кусты поверх
+    this.particles.forEach(p => { ctx.fillStyle = p.c; ctx.fillRect(ox + p.x, oy + p.y, p.s, p.s); });
+    this.explosions.forEach(e => e.draw(ctx, ox, oy));
+    this.weather.draw(ctx, ox, oy, this.players);
+    this.drawHUD(ctx);
+    if (this.state === "pause") {
+      ctx.fillStyle = "rgba(0,0,0,.6)"; ctx.fillRect(ox, oy, CFG.FIELD, CFG.FIELD);
+      textC(ctx, "PAUSE", ox + 208, oy + 190, 4, "#f8f8f8");
+      textC(ctx, "ESC - MENU   P - CONTINUE", ox + 208, oy + 230, 1, "#c0c0c0");
+    }
+    if (this.state === "clear") this.drawLevelClear(ctx);
+    if (this.state === "over") {
+      const y = oy + 200;
+      ctx.fillStyle = "rgba(0,0,0,.75)"; ctx.fillRect(ox, oy, CFG.FIELD, CFG.FIELD);
+      textC(ctx, this.victory ? "VICTORY" : "GAME OVER", ox + 208, y, 4, this.victory ? "#70B050" : "#d05050");
+      textC(ctx, "SCORE " + this.score, ox + 208, y + 46, 2, "#f0c020");
+    }
+  }
+  drawIntro(ctx) {
+    const ox = CFG.OX, oy = CFG.OY;
+    ctx.fillStyle = "#8c8c8c"; ctx.fillRect(ox, oy, CFG.FIELD, CFG.FIELD);
+    const name = this.mode === "endless" ? "ENDLESS WAVE " + this.wave :
+      this.mode === "survival" ? "SURVIVAL WAVE " + this.wave :
+        this.mode === "ctf" ? "CAPTURE THE FLAG" :
+          this.mode === "custom" ? "CUSTOM LEVEL" : "STAGE " + this.levelIndex;
+    textC(ctx, name, ox + 208, oy + 196, 3, "#000");
+    const w = this.weather.label();
+    if (w) textC(ctx, w, ox + 208, oy + 236, 2, "#303030");
+  }
+  drawLevelClear(ctx) {
+    const ox = CFG.OX, oy = CFG.OY;
+    ctx.fillStyle = "rgba(0,0,0,.8)"; ctx.fillRect(ox, oy, CFG.FIELD, CFG.FIELD);
+    textC(ctx, "STAGE CLEAR", ox + 208, oy + 90, 3, "#f0c020");
+    const s = this.stats.byType;
+    let y = oy + 150;
+    const line = (a, b, c) => { text(ctx, a, ox + 60, y, 1, "#c0c0c0"); text(ctx, b, ox + 250, y, 1, c || "#fff"); y += 22; };
+    line("BASIC x" + s.basic, s.basic * 100 + " PTS");
+    line("FAST  x" + s.fast, s.fast * 200 + " PTS");
+    line("POWER x" + s.power, s.power * 300 + " PTS");
+    line("BOSS  x" + s.boss, s.boss * 1000 + " PTS");
+    y += 10;
+    line("TOTAL SCORE", "" + this.score, "#f0c020");
+    line("COINS EARNED", "+" + this.coinsEarned, "#f0c020");
+  }
+  drawHUD(ctx) {
+    const x = 448, ctx2 = ctx;
+    ctx.fillStyle = PAL.bg; ctx.fillRect(440, 0, 104, CFG.CH);
+    // Оставшиеся враги — иконки
+    let n = this.enemyQueue.length + this.enemies.length, i = 0;
+    for (let r = 0; r < 10 && i < n; r++) for (let c = 0; c < 4 && i < n; c++, i++) {
+      ctx.fillStyle = "#000"; ctx.fillRect(x + c * 12, 20 + r * 12, 8, 8);
+      ctx.fillStyle = "#404040"; ctx.fillRect(x + c * 12 + 1, 21 + r * 12, 6, 6);
+      ctx.fillStyle = "#000"; ctx.fillRect(x + c * 12 + 3, 20 + r * 12, 2, 3);
+    }
+    let y = 150;
+    this.players.forEach((p, k) => {
+      text(ctx, "IP" + (k ? "I" : ""), x, y, 1, "#000");
+      drawTank(ctx, x + 2, y + 12, 0, p.colors, { trackPhase: 0 });
+      text(ctx, String(Math.max(0, p.lives)), x + 40, y + 22, 2, "#000");
+      y += 56;
+    });
+    // Флажок уровня
+    text(ctx, "STAGE", x, y + 6, 1, "#000");
+    text(ctx, String(this.levelIndex), x, y + 20, 2, "#000");
+    // Счёт и монеты
+    y += 50;
+    text(ctx, "SCORE", x, y, 1, "#000");
+    text(ctx, String(this.score), x, y + 12, 1, "#fff");
+    text(ctx, "COINS", x, y + 30, 1, "#000");
+    text(ctx, String(SAVE.coins), x, y + 42, 1, "#f0c020");
+    if (this.mode === "ctf") {
+      text(ctx, "CTF " + this.ctfScore[0] + ":" + this.ctfScore[1], x, y + 62, 1, "#000");
+    }
+    if (SAVE.settings.showFPS) text(ctx, "FPS " + Loop.fps, x, CFG.CH - 14, 1, "#000");
+  }
+}
+
+/* ============================== 14. РЕЙТИНГ И ОБЛАКО ============================== */
+/* Локальный топ-10 + глобальный рейтинг (Firebase/Supabase). Без сети — офлайн-режим. */
+const LB = {
+  submit(name, score, level) {
+    if (score <= 0) return;
+    SAVE.records.push({ name, score, level, date: today(), ts: now() });
+    SAVE.records.sort((a, b) => b.score - a.score);
+    SAVE.records = SAVE.records.slice(0, 10);
+    persist();
+    Online.submitScore(name, score, level);
+  },
+  local() { return SAVE.records; },
+  isTop10(name) { return SAVE.records.slice(0, 10).some(r => r.name === name); },
+  // Фильтрация по периоду: day | week | all
+  byPeriod(list, period) {
+    const t = now();
+    const lim = period === "day" ? 864e5 : period === "week" ? 6048e5 : Infinity;
+    return list.filter(r => (t - (r.ts || 0)) <= lim).sort((a, b) => b.score - a.score).slice(0, 20);
+  }
+};
+
+/* --- Онлайн-бэкенд: Firebase Firestore (или офлайн-заглушка) --- */
+const Online = {
+  ready: false, mode: "offline", db: null, uid: null,
+  async init() {
+    if (!CFG.FIREBASE.apiKey) { this.mode = "offline"; return; }   // ключи не заданы => офлайн
+    try {
+      // Подключение Firebase SDK через CDN (модульная версия 10.x)
+      const app = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+      const fs = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      const auth = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+      const a = app.initializeApp(CFG.FIREBASE);
+      this.db = fs.getFirestore(a); this.fs = fs;
+      const au = auth.getAuth(a);
+      const cred = await auth.signInAnonymously(au);
+      this.uid = cred.user.uid; this.ready = true; this.mode = "online";
+      toast("Онлайн-режим подключён", "#70B050");
+      this.pullProfile();
+    } catch (e) {
+      this.mode = "offline";
+      console.warn("Firebase недоступен, работаем офлайн:", e.message);
+    }
+  },
+  async submitScore(name, score, level) {
+    if (!this.ready) return;   // офлайн — счёт уже сохранён локально
+    try {
+      const { collection, addDoc, serverTimestamp } = this.fs;
+      await addDoc(collection(this.db, "scores"), {
+        name, score, level, uid: this.uid, ts: serverTimestamp(), day: today()
+      });
+    } catch (e) { console.warn("submitScore:", e.message); }
+  },
+  async getLeaderboard(period) {
+    if (!this.ready) return null;    // null => UI покажет локальный топ
+    try {
+      const { collection, query, orderBy, limit, where, getDocs } = this.fs;
+      let q = query(collection(this.db, "scores"), orderBy("score", "desc"), limit(20));
+      if (period === "day") q = query(collection(this.db, "scores"), where("day", "==", today()), orderBy("score", "desc"), limit(20));
+      const snap = await getDocs(q);
+      return snap.docs.map(d => d.data());
+    } catch (e) { return null; }
+  },
+  // Синхронизация профиля между устройствами
+  async syncProfile() {
+    if (!this.ready) return;
+    try {
+      const { doc, setDoc } = this.fs;
+      await setDoc(doc(this.db, "profiles", this.uid), {
+        name: SAVE.name, avatar: SAVE.avatar, coins: SAVE.coins, maxLevel: SAVE.maxLevel,
+        owned: SAVE.owned, equipped: SAVE.equipped, upgrades: SAVE.upgrades,
+        stats: SAVE.stats, achievements: SAVE.achievements, updated: now()
+      }, { merge: true });
+    } catch (e) { }
+  },
+  async pullProfile() {
+    if (!this.ready) return;
+    try {
+      const { doc, getDoc } = this.fs;
+      const s = await getDoc(doc(this.db, "profiles", this.uid));
+      if (s.exists()) {
+        const d = s.data();
+        // Берём максимум монет/прогресса (простое разрешение конфликтов)
+        if (d.coins > SAVE.coins) SAVE.coins = d.coins;
+        SAVE.maxLevel = Math.max(SAVE.maxLevel, d.maxLevel || 1);
+        for (const k in (d.owned || {})) SAVE.owned[k] = Array.from(new Set([...(SAVE.owned[k] || []), ...d.owned[k]]));
+        persist();
+      }
+    } catch (e) { }
+  }
+};
+
+/* ============================== 15. МУЛЬТИПЛЕЕР (WebSocket) ============================== */
+/* Протокол (клиентская часть готова; серверная — см. README, TODO: развернуть сервер).
+   -> {t:"create"} / {t:"join", room:"1234"} / {t:"state", ...} / {t:"chat", msg}
+   <- {t:"room", code} / {t:"peer", ...} / {t:"state", ...} / {t:"chat", from, msg}         */
+const MP = {
+  ws: null, room: null, role: null, peers: [], chat: [], connected: false,
+  connect(cb) {
+    if (!CFG.MP_SERVER) { toast("Сервер мультиплеера не настроен — офлайн", "#d05050"); cb && cb(false); return; }
+    try {
+      this.ws = new WebSocket(CFG.MP_SERVER);
+      this.ws.onopen = () => { this.connected = true; toast("Подключено к серверу", "#70B050"); cb && cb(true); };
+      this.ws.onclose = () => { this.connected = false; toast("Соединение потеряно — офлайн-режим", "#d05050"); };
+      this.ws.onerror = () => { this.connected = false; cb && cb(false); };
+      this.ws.onmessage = e => this.onMessage(JSON.parse(e.data));
+    } catch (err) { cb && cb(false); }
+  },
+  send(o) { if (this.connected) this.ws.send(JSON.stringify(o)); },
+  createRoom(mode) {
+    const code = String(1000 + rnd(9000));   // 4-значный код комнаты
+    this.room = code; this.role = "host";
+    this.connect(ok => { if (ok) this.send({ t: "create", room: code, mode, name: SAVE.name }); });
+    return code;
+  },
+  joinRoom(code) {
+    this.room = code; this.role = "guest";
+    this.connect(ok => { if (ok) this.send({ t: "join", room: code, name: SAVE.name }); });
+  },
+  onMessage(m) {
+    if (m.t === "chat") { this.chat.push(m); toast(m.from + ": " + m.msg, "#5da0f0"); }
+    else if (m.t === "peer") { this.peers = m.peers || []; toast("Игроков в комнате: " + this.peers.length); }
+    else if (m.t === "state") { /* TODO: синхронизация состояния игры (позиции танков, пуль) */ }
+    else if (m.t === "start") { UI.startGame({ mode: m.mode === "pvp" ? "ctf" : "2p", level: 1 }); }
+  },
+  sendChat(msg) { this.send({ t: "chat", room: this.room, from: SAVE.name, msg }); },
+  // Список активных комнат (TODO: реализовать запрос к серверу /rooms)
+  async listRooms() {
+    if (!this.connected) return [];
+    return new Promise(res => { this.send({ t: "rooms" }); setTimeout(() => res(this.rooms || []), 500); });
+  },
+  leave() { if (this.ws) try { this.ws.close(); } catch (e) { } this.room = null; this.connected = false; }
+};
+
+/* ============================== 16. ПЛАТЕЖИ (Stripe / PayPal / ЮKassa) ============================== */
+/* ВАЖНО: без серверных ключей всё работает в ДЕМО-режиме и реальных денег не списывает.
+   Реальные платежи требуют бэкенда: создание Checkout Session и обработка webhook.       */
+const Pay = {
+  stripe: null,
+  async initStripe() {
+    if (!CFG.STRIPE_PK || this.stripe) return this.stripe;
+    try {
+      await new Promise((res, rej) => {
+        const s = document.createElement("script");
+        s.src = "https://js.stripe.com/v3/"; s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+      this.stripe = window.Stripe(CFG.STRIPE_PK);
+    } catch (e) { console.warn("Stripe SDK недоступен (офлайн?)"); }
+    return this.stripe;
+  },
+  isLive() { return CFG.PAYMENTS_LIVE && !!CFG.STRIPE_PK; },
+  // Покупка пакета монет
+  async buyCoins(pack) {
+    if (!this.isLive()) return this.demo(pack);
+    // TODO: заменить на вызов вашего бэкенда, создающего Checkout Session:
+    // const r = await fetch("/api/checkout", {method:"POST", body: JSON.stringify({pack: pack.id})});
+    // const {sessionId} = await r.json();
+    // (await this.initStripe()).redirectToCheckout({sessionId});
+    // Монеты начисляются webhook-ом сервера после успешной оплаты.
+    UI.modal(`<h3>ОПЛАТА</h3><p>Бэкенд оплаты не подключён.</p>
+      <div class="warn">TODO: реализовать эндпоинт /api/checkout и webhook Stripe.</div>`);
+  },
+  // ДЕМО-режим: имитация начисления без реальной оплаты
+  demo(pack) {
+    const total = pack.coins + Math.round(pack.coins * pack.bonus);
+    UI.modal(`<h3>ДЕМО-РЕЖИМ ОПЛАТЫ</h3>
+      <p>Пакет: <span class="gold">${fmt(total)} монет</span> за $${pack.usd.toFixed(2)}</p>
+      <div class="warn">Реальные платежи ОТКЛЮЧЕНЫ. Это витрина без списания денег.<br>
+      Чтобы включить: задайте CFG.STRIPE_PK, CFG.PAYMENTS_LIVE=true и поднимите бэкенд (см. README).</div>
+      <p class="gray">Платёжные провайдеры (заготовки): Stripe, PayPal, ЮKassa.<br>
+      Ссылка для доната: ${CFG.DONATE_URL}</p>
+      <div class="btn" onclick="Pay.grantDemo(${total})">НАЧИСЛИТЬ ТЕСТОВЫЕ МОНЕТЫ</div>
+      <div class="btn" style="border-color:#888;color:#888" onclick="UI.closeModal()">ЗАКРЫТЬ</div>`);
+  },
+  grantDemo(total) {
+    SAVE.coins += total; persist(); Audio_.coin();
+    toast("ДЕМО: начислено " + fmt(total) + " монет", "#f0c020");
+    UI.closeModal(); UI.renderList();
+  },
+  // Подписка
+  async buyPremium(tier) {
+    if (!this.isLive()) {
+      UI.modal(`<h3>ПОДПИСКА «${tier.name}»</h3>
+        <p>$${tier.usd.toFixed(2)} / месяц — ${tier.desc}</p>
+        <div class="warn">ДЕМО-РЕЖИМ: подписка активируется локально на 30 дней без оплаты.<br>
+        Для реальных подписок нужен Stripe Billing + webhook (см. README).</div>
+        <div class="btn" onclick="Pay.grantPremiumDemo('${tier.id}')">АКТИВИРОВАТЬ ДЕМО НА 30 ДНЕЙ</div>
+        <div class="btn" style="border-color:#888;color:#888" onclick="UI.closeModal()">ЗАКРЫТЬ</div>`);
+      return;
+    }
+    // TODO: Stripe Billing — создать подписку через бэкенд и обработать webhook
+  },
+  grantPremiumDemo(id) {
+    SAVE.premium = { tier: id, until: now() + 30 * 864e5 };
+    persist(); UI.closeModal(); UI.renderList();
+    toast("Активирован статус: " + id.toUpperCase(), "#f0c020");
+  },
+  // QR-код для мобильной оплаты (рисуем ссылку; полноценный QR — через CDN-библиотеку)
+  qr() {
+    UI.modal(`<h3>ОПЛАТА С ТЕЛЕФОНА</h3>
+      <p>Откройте ссылку на мобильном:</p>
+      <p class="gold">${CFG.DONATE_URL}</p>
+      <div id="qrbox" style="margin:8px 0"></div>
+      <div class="warn">TODO: подключить генератор QR (cdnjs qrcodejs) и реальный платёжный шлюз.</div>
+      <div class="btn" onclick="UI.closeModal()">ЗАКРЫТЬ</div>`);
+    // Пытаемся подгрузить генератор QR, если есть сеть
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
+    s.onload = () => { try { new window.QRCode($("#qrbox"), { text: CFG.DONATE_URL, width: 120, height: 120 }); } catch (e) { } };
+    document.head.appendChild(s);
+  }
+};
+
+/* ============================== 17. ЕЖЕДНЕВНЫЙ БОНУС И ЧЕЛЛЕНДЖИ ============================== */
+function dailyBonus() {
+  const d = today();
+  if (SAVE.daily.last === d) return null;
+  const y = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  SAVE.daily.streak = (SAVE.daily.last === y) ? SAVE.daily.streak + 1 : 1;
+  SAVE.daily.last = d;
+  const amount = 50 + (SAVE.daily.streak - 1) * 10;   // +50 за вход, +10 за каждый день стрика
+  SAVE.coins += amount; persist(); Ach.check();
+  return { amount, streak: SAVE.daily.streak };
+}
+const CHALLENGE_POOL = [
+  { id: "c1", t: "Пройди 3 уровня за 5 минут", r: 200, test: (g, st) => st.levelsToday >= 3 },
+  { id: "c2", t: "Уничтожь 30 врагов за день", r: 150, test: (g, st) => st.killsToday >= 30 },
+  { id: "c3", t: "Пройди уровень без потери жизни", r: 180, test: (g) => g && !g.lostLifeThisLevel },
+  { id: "c4", t: "Пройди уровень быстрее 60 секунд", r: 220, test: (g, st, dur) => dur < 60000 },
+  { id: "c5", t: "Разрушь 200 блоков", r: 160, test: (g, st) => st.blocksToday >= 200 },
+  { id: "c6", t: "Убей босса", r: 250, test: (g) => g && g.stats.byType.boss > 0 },
+  { id: "c7", t: "Собери 5 бонусов", r: 140, test: (g, st) => st.bonusToday >= 5 }
+];
+const Challenges = {
+  todayList() {
+    const R = mulberry32(seedFromString("chal_" + today()));
+    const pool = CHALLENGE_POOL.slice();
+    const out = [];
+    for (let i = 0; i < 3 && pool.length; i++) out.push(pool.splice(Math.floor(R() * pool.length), 1)[0]);
+    return out;
+  },
+  daySt() {
+    if (SAVE.challenges.date !== today()) SAVE.challenges = { date: today(), done: [], st: {} };
+    SAVE.challenges.st = SAVE.challenges.st || {};
+    return SAVE.challenges.st;
+  },
+  report(g, dur) {
+    const st = this.daySt();
+    st.levelsToday = (st.levelsToday || 0) + 1;
+    st.killsToday = (st.killsToday || 0) + g.stats.kills;
+    st.blocksToday = (st.blocksToday || 0) + g.stats.blocks;
+    st.bonusToday = (st.bonusToday || 0) + 0;
+    for (const c of this.todayList()) {
+      if (SAVE.challenges.done.includes(c.id)) continue;
+      let ok = false; try { ok = c.test(g, st, dur); } catch (e) { }
+      if (ok) {
+        SAVE.challenges.done.push(c.id);
+        SAVE.coins += c.r;
+        SAVE.stats.challengesDone = (SAVE.stats.challengesDone || 0) + 1;
+        toast("ЧЕЛЛЕНДЖ ВЫПОЛНЕН: " + c.t + " (+" + c.r + "🪙)", "#f0c020");
+      }
+    }
+    persist();
+  }
+};
+
+/* ============================== 18. ИНТЕРФЕЙС (меню, магазин, рейтинг, редактор) ============================== */
+const UI = {
+  screen: "menu",       // menu | list | editor | game
+  stack: [],
+  sel: 0, tab: 0,
+  levelSel: 1,
+  list: null,
+  editorData: null, editorTool: "B",
+
+  /* --- Переключение экранов --- */
+  show(name) {
+    $$(".overlay").forEach(o => o.classList.remove("on"));
+    this.screen = name;
+    if (name === "menu") { $("#scr-menu").classList.add("on"); this.drawLogo(); this.buildMenu(); }
+    else if (name === "list") { $("#scr-list").classList.add("on"); this.renderList(); }
+    else if (name === "editor") { $("#scr-editor").classList.add("on"); this.buildEditor(); }
+    // name === "game" — оверлеи скрыты, виден холст
+    $("#touch").classList.toggle("on", isTouch && name === "game");
+    $("#btnPause").textContent = name === "game" ? "II" : "";
+  },
+  back() {
+    if (Game.cur) { Game.cur = null; Audio_.engine(false); }
+    this.show("menu");
+  },
+  /* --- Логотип BATTLE CITY --- */
+  drawLogo() {
+    const c = $("#logo"), ctx = c.getContext("2d");
+    ctx.clearRect(0, 0, c.width, c.height);
+    textC(ctx, "BATTLE", c.width / 2, 2, 6, "#C09848");
+    textC(ctx, "CITY", c.width / 2, 50, 6, "#C09848");
+    // Гусеничная полоска-декор под названием
+    ctx.fillStyle = "#707070";
+    for (let x = 40; x < c.width - 40; x += 8) ctx.fillRect(x, 98, 5, 4);
+  },
+  /* --- Главное меню --- */
+  buildMenu() {
+    const bonus = SAVE.daily.last === today() ? `стрик ${SAVE.daily.streak} дн.` : "доступен бонус!";
+    const items = [
+      { label: "1 PLAYER", act: () => this.startGame({ mode: "1p", level: this.levelSel }) },
+      { label: "2 PLAYERS", act: () => this.startGame({ mode: "2p", level: this.levelSel }) },
+      {
+        label: "УРОВЕНЬ / STAGE", right: "< " + this.levelSel + " >",
+        act: () => this.startGame({ mode: "1p", level: this.levelSel }),
+        left: () => { this.levelSel = this.levelSel <= 1 ? CFG.TOTAL_LEVELS : this.levelSel - 1; this.buildMenu(); },
+        rightK: () => { this.levelSel = this.levelSel >= CFG.TOTAL_LEVELS ? 1 : this.levelSel + 1; this.buildMenu(); }
+      },
+      { label: "РЕЖИМЫ / GAME MODES", act: () => this.openList("modes") },
+      { label: "SHOP / МАГАЗИН", right: SAVE.coins + " 🪙", act: () => this.openList("shop") },
+      { label: "LEADERBOARD / РЕЙТИНГ", act: () => this.openList("lb") },
+      { label: "ДОСТИЖЕНИЯ", right: Ach.count() + "/" + ACHIEVEMENTS.length, act: () => this.openList("ach") },
+      { label: "СТАТИСТИКА", act: () => this.openList("stats") },
+      { label: "LEVEL EDITOR", act: () => this.show("editor") },
+      { label: "МУЛЬТИПЛЕЕР", right: Online.mode === "online" ? "ONLINE" : "OFFLINE", act: () => this.openList("mp") },
+      { label: "ЕЖЕДНЕВНЫЕ ЧЕЛЛЕНДЖИ", right: bonus, act: () => this.openList("daily") },
+      { label: "ДОНАТ / КУПИТЬ МОНЕТЫ", act: () => this.openList("donate") },
+      { label: "НАСТРОЙКИ", act: () => this.openList("settings") },
+      { label: "ПРОДОЛЖИТЬ СОХРАНЁННУЮ ИГРУ", right: SAVE.progress ? "есть" : "нет", act: () => this.loadProgress() }
+    ];
+    this.menuItems = items;
+    this.sel = clamp(this.sel, 0, items.length - 1);
+    const box = $("#menuList");
+    box.innerHTML = items.map((it, i) =>
+      `<div class="row ${i === this.sel ? "sel" : ""}"><span class="cur ${i === this.sel ? "blink" : ""}"></span>
+       <span class="name">${it.label}</span><span class="price">${it.right || ""}</span></div>`).join("");
+    const s = box.querySelector(".row.sel"); if (s) s.scrollIntoView({ block: "nearest" });
+    this.bindClicks(box, items, () => this.buildMenu());
+  },
+  // Клик/тап по строке: выделяет её и выполняет действие (управление без клавиатуры)
+  bindClicks(box, items, rerender) {
+    box.querySelectorAll(".row").forEach((row, i) => {
+      row.addEventListener("click", () => {
+        Audio_.init(); Audio_.resume();
+        if (this.sel !== i) { this.sel = i; rerender(); return; }   // первый тап — выбор
+        const it = items[i];
+        if (it && it.act) { Audio_.tone(880, 0.05, "square", 0.2); it.act(); }  // повторный — действие
+      });
+    });
+  },
+  /* --- Универсальный списочный экран --- */
+  openList(kind, tab) {
+    this.listKind = kind; this.tab = tab || 0; this.sel = 0;
+    this.show("list");
+  },
+  renderList() {
+    const L = this.buildListData(this.listKind);
+    this.list = L;
+    $("#listTitle").textContent = L.title;
+    $("#listSub").innerHTML = L.sub || "";
+    $("#listTabs").innerHTML = (L.tabs || []).map((t, i) =>
+      `<span class="tab ${i === this.tab ? "on" : ""}">${t}</span>`).join("");
+    this.sel = clamp(this.sel, 0, Math.max(0, L.items.length - 1));
+    $("#listBody").innerHTML = L.items.map((it, i) => {
+      if (it.hdr) return `<div class="row"><span class="cur"></span><span class="name gold">— ${it.hdr} —</span></div>`;
+      return `<div class="row ${i === this.sel ? "sel" : ""}">
+        <span class="cur ${i === this.sel ? "blink" : ""}"></span>
+        <span class="name ${it.cls || ""}">${it.label}</span>
+        ${it.tag ? `<span class="tag ${it.tagCls || ""}">${it.tag}</span>` : ""}
+        ${it.right ? `<span class="price">${it.right}</span>` : ""}</div>`;
+    }).join("") || `<div class="row gray">ПУСТО</div>`;
+    $("#listHint").innerHTML = L.hint || "&uarr;&darr; выбор &nbsp; ENTER действие &nbsp; TAB вкладка &nbsp; ESC назад";
+    const s = $("#listBody").querySelector(".row.sel"); if (s) s.scrollIntoView({ block: "nearest" });
+    this.bindClicks($("#listBody"), L.items, () => this.renderList());
+    // Переключение вкладок тапом
+    $("#listTabs").querySelectorAll(".tab").forEach((t, i) =>
+      t.addEventListener("click", () => { this.tab = i; this.sel = 0; this.renderList(); }));
+  },
+  /* --- Построение содержимого экранов --- */
+  buildListData(kind) {
+    const coins = `<span class="gold">🪙 ${fmt(SAVE.coins)}</span>`;
+    if (kind === "shop") {
+      const cats = ["color", "skin", "shot", "upgrade", "effect"];
+      const names = ["ЦВЕТА", "СКИНЫ", "ВЫСТРЕЛЫ", "УЛУЧШЕНИЯ", "ЭФФЕКТЫ"];
+      const cat = cats[this.tab];
+      const items = SHOP[cat].map(it => {
+        const own = isOwned(cat, it), lock = isLocked(it);
+        const eq = SAVE.equipped[cat] === it.id;
+        return {
+          label: it.name,
+          tag: eq ? "НАДЕТО" : own ? "КУПЛЕНО" : lock ? "ЗАКРЫТО" : "",
+          tagCls: eq ? "eq" : own ? "own" : lock ? "lock" : "",
+          right: own ? "" : (it.price < 0 ? "ПОДПИСКА" : it.price + " 🪙"),
+          cls: lock && !own ? "gray" : "",
+          act: () => {
+            if (cat === "upgrade") { if (!own) buy(cat, it); this.renderList(); return; }
+            if (!own) { if (buy(cat, it)) { SAVE.equipped[cat] = it.id; persist(); } }
+            else { SAVE.equipped[cat] = it.id; persist(); toast("НАДЕТО: " + it.name, "#5da0f0"); }
+            if (it.id === "flag") this.chooseFlag();
+            if (it.id === "custom") this.customSkinEditor();
+            this.renderList();
+          }
+        };
+      });
+      items.push({
+        label: "🪙 КУПИТЬ МОНЕТЫ ЗА ДЕНЬГИ", cls: "gold",
+        act: () => this.openList("donate")
+      });
+      return {
+        title: "SHOP / МАГАЗИН", tabs: names, items,
+        sub: `Баланс: ${coins} &nbsp; Уровень: ${SAVE.maxLevel} &nbsp; Статус: ${SAVE.premium.until > now() ? SAVE.premium.tier.toUpperCase() : "нет"}`
+      };
+    }
+    if (kind === "lb") {
+      const periods = ["ЗА ДЕНЬ", "ЗА НЕДЕЛЮ", "ВСЁ ВРЕМЯ"];
+      const p = ["day", "week", "all"][this.tab];
+      const rows = LB.byPeriod(SAVE.records, p);
+      const items = rows.map((r, i) => ({
+        label: `${pad(i + 1, 2)}. ${r.name}`, right: fmt(r.score) + " (ур." + r.level + ")",
+        cls: i === 0 ? "gold" : "", act: () => { }
+      }));
+      if (!items.length) items.push({ label: "РЕКОРДОВ ПОКА НЕТ — СЫГРАЙТЕ ИГРУ", cls: "gray", act: () => { } });
+      items.push({ label: "ИЗМЕНИТЬ ИМЯ ИГРОКА (" + SAVE.name + ")", act: () => this.renameProfile() });
+      return {
+        title: "LEADERBOARD / РЕЙТИНГ", tabs: periods, items,
+        sub: Online.mode === "online" ? '<span class="grn">Глобальный рейтинг подключён</span>'
+          : '<span class="gray">Офлайн: показан локальный топ-10. Задайте CFG.FIREBASE для глобального.</span>'
+      };
+    }
+    if (kind === "ach") {
+      const items = ACHIEVEMENTS.map(a => {
+        const got = !!SAVE.achievements[a.id];
+        return {
+          label: (got ? "★ " : "☆ ") + a.n + " — " + a.d, right: "+" + a.r + " 🪙",
+          cls: got ? "grn" : "gray", tag: got ? "ПОЛУЧЕНО" : "", tagCls: "own", act: () => { }
+        };
+      });
+      return { title: "ДОСТИЖЕНИЯ", items, sub: `Открыто ${Ach.count()} из ${ACHIEVEMENTS.length}` };
+    }
+    if (kind === "stats") {
+      const s = SAVE.stats;
+      const winRate = s.games ? Math.round(s.wins / s.games * 100) : 0;
+      const favBonus = Object.entries(s.bonusesTaken || {}).sort((a, b) => b[1] - a[1])[0];
+      const items = [
+        { label: "ИГР СЫГРАНО", right: s.games }, { label: "ПОБЕД / ПОРАЖЕНИЙ", right: s.wins + " / " + s.losses },
+        { label: "ПРОЦЕНТ ПОБЕД", right: winRate + "%" },
+        { hdr: "УНИЧТОЖЕНО ВРАГОВ" },
+        { label: "ВСЕГО", right: s.kills }, { label: "ОБЫЧНЫХ (жёлтые)", right: s.killsBasic || 0 },
+        { label: "БЫСТРЫХ (серебряные)", right: s.killsFast || 0 }, { label: "МОЩНЫХ (золотые)", right: s.killsPower || 0 },
+        { label: "БРОНЕВЫХ", right: s.killsArmor || 0 },
+        { label: "БОССОВ", right: s.killsBoss || 0 },
+        { hdr: "ПРОЧЕЕ" },
+        { label: "РАЗРУШЕНО БЛОКОВ", right: s.blocks }, { label: "ПРОЙДЕНО УРОВНЕЙ", right: s.levels },
+        { label: "УРОВНЕЙ В КООПЕРАТИВЕ", right: s.coopLevels }, { label: "ВЫСТРЕЛОВ", right: s.bulletsFired },
+        { label: "ПОТЕРЯНО ТАНКОВ", right: s.deaths }, { label: "ОБЩЕЕ ВРЕМЯ В ИГРЕ", right: timeStr(s.playTime) },
+        { label: "ЛУЧШИЙ СЧЁТ", right: fmt(s.bestScore) }, { label: "СУММАРНЫЙ СЧЁТ", right: fmt(s.totalScore) },
+        { label: "ЛЮБИМЫЙ БОНУС", right: favBonus ? favBonus[0] + " x" + favBonus[1] : "—" },
+        { label: "МОНЕТ НАКОПЛЕНО", right: fmt(SAVE.coins) + " 🪙" },
+        { hdr: "ДЕЙСТВИЯ" },
+        { label: "СБРОСИТЬ ВЕСЬ ПРОГРЕСС", cls: "red", act: () => this.resetProgress() }
+      ].map(x => Object.assign({ act: () => { } }, x));
+      return { title: "СТАТИСТИКА", items, sub: `Игрок: ${SAVE.name}` };
+    }
+    if (kind === "modes") {
+      const items = [
+        { label: "КАМПАНИЯ — 1 ИГРОК", right: "35 уровней", act: () => this.startGame({ mode: "1p", level: this.levelSel }) },
+        { label: "КАМПАНИЯ — 2 ИГРОКА (локально)", act: () => this.startGame({ mode: "2p", level: this.levelSel }) },
+        { label: "БЕСКОНЕЧНЫЙ РЕЖИМ", right: "волны", act: () => this.startGame({ mode: "endless", level: 1 }) },
+        { label: "ВЫЖИВАНИЕ", right: "1 жизнь", act: () => this.startGame({ mode: "survival", level: this.levelSel }) },
+        { label: "БОСС-БИТВА", right: "супер-танк", act: () => this.startGame({ mode: "boss", level: 5 }) },
+        { label: "ЗАХВАТ ФЛАГА (2 игрока)", act: () => this.startGame({ mode: "ctf", level: 3 }) },
+        { label: "ТУРНИР (8 игроков, 5 раундов)", right: "TODO", cls: "gray", act: () => this.tournament() },
+        { hdr: "СВОИ УРОВНИ" },
+        ...SAVE.customLevels.map((l, i) => ({
+          label: "▶ " + l.name, right: "играть",
+          act: () => this.startGame({ mode: "custom", level: 1, rows: l.rows })
+        }))
+      ].map(x => Object.assign({ act: () => { } }, x));
+      return { title: "РЕЖИМЫ ИГРЫ", items, sub: "Выберите режим и нажмите ENTER" };
+    }
+    if (kind === "mp") {
+      const items = [
+        { label: "СОЗДАТЬ КОМНАТУ (CO-OP против ИИ)", act: () => this.mpCreate("coop") },
+        { label: "СОЗДАТЬ КОМНАТУ (PvP)", act: () => this.mpCreate("pvp") },
+        { label: "ПОДКЛЮЧИТЬСЯ ПО 4-ЗНАЧНОМУ КОДУ", act: () => this.mpJoin() },
+        { label: "СПИСОК АКТИВНЫХ КОМНАТ", right: "TODO", cls: "gray", act: () => toast("Нужен сервер: задайте CFG.MP_SERVER") },
+        { label: "ЧАТ В ИГРЕ", right: MP.connected ? "готов" : "офлайн", act: () => this.mpChat() },
+        { hdr: "ОФЛАЙН" },
+        { label: "ИГРАТЬ ПРОТИВ ИИ (без сети)", act: () => this.startGame({ mode: "1p", level: this.levelSel }) },
+        { label: "ЛОКАЛЬНЫЙ КООПЕРАТИВ НА ОДНОЙ КЛАВИАТУРЕ", act: () => this.startGame({ mode: "2p", level: this.levelSel }) }
+      ].map(x => Object.assign({ act: () => { } }, x));
+      return {
+        title: "МУЛЬТИПЛЕЕР", items,
+        sub: MP.connected ? `<span class="grn">Комната: ${MP.room}</span>`
+          : '<span class="gray">Сервер не настроен (CFG.MP_SERVER) — доступен офлайн-режим</span>'
+      };
+    }
+    if (kind === "daily") {
+      const list = Challenges.todayList();
+      const items = list.map(c => ({
+        label: (SAVE.challenges.done.includes(c.id) ? "✔ " : "○ ") + c.t,
+        right: "+" + c.r + " 🪙", cls: SAVE.challenges.done.includes(c.id) ? "grn" : "",
+        act: () => { }
+      }));
+      items.push({ hdr: "ЕЖЕДНЕВНЫЙ ВХОД" });
+      items.push({
+        label: SAVE.daily.last === today() ? "БОНУС УЖЕ ПОЛУЧЕН СЕГОДНЯ" : "ПОЛУЧИТЬ БОНУС ЗА ВХОД",
+        right: "стрик " + SAVE.daily.streak, act: () => {
+          const b = dailyBonus();
+          if (b) { toast(`+${b.amount} монет! Стрик ${b.streak} дн.`, "#f0c020"); Audio_.coin(); }
+          else toast("Бонус уже получен, приходите завтра");
+          this.renderList();
+        }
+      });
+      return { title: "ЕЖЕДНЕВНЫЕ ЧЕЛЛЕНДЖИ", items: items.map(x => Object.assign({ act: () => { } }, x)), sub: today() };
+    }
+    if (kind === "donate") {
+      const items = [{ hdr: "ПАКЕТЫ МОНЕТ" }];
+      COIN_PACKS.forEach(p => {
+        const total = p.coins + Math.round(p.coins * p.bonus);
+        items.push({
+          label: fmt(total) + " МОНЕТ" + (p.bonus ? ` (+${Math.round(p.bonus * 100)}% бонус)` : ""),
+          right: "$" + p.usd.toFixed(2), cls: "gold", act: () => Pay.buyCoins(p)
+        });
+      });
+      items.push({ hdr: "ПРЕМИУМ-ПОДПИСКИ" });
+      PREMIUM.forEach(t => items.push({
+        label: t.name + " — " + t.desc, right: "$" + t.usd.toFixed(2) + "/мес",
+        cls: isPremium(t.id) ? "grn" : "", tag: isPremium(t.id) ? "АКТИВНА" : "", tagCls: "own",
+        act: () => Pay.buyPremium(t)
+      }));
+      items.push({ hdr: "ПРОЧЕЕ" });
+      items.push({ label: "QR-КОД ДЛЯ ОПЛАТЫ С ТЕЛЕФОНА", act: () => Pay.qr() });
+      items.push({ label: "СТРАНИЦА ДОНАТА: " + CFG.DONATE_URL, act: () => window.open("donate.html", "_blank") });
+      return {
+        title: "ДОНАТ / BUY COINS",
+        items: items.map(x => Object.assign({ act: () => { } }, x)),
+        sub: Pay.isLive() ? '<span class="grn">Платежи включены</span>'
+          : '<span class="red">ДЕМО-РЕЖИМ: реальные деньги НЕ списываются</span>'
+      };
+    }
+    if (kind === "settings") {
+      const st = SAVE.settings;
+      const items = [
+        { label: "ЗВУК", right: st.sound ? "ВКЛ" : "ВЫКЛ", act: () => { st.sound = Audio_.toggle(); persist(); this.renderList(); } },
+        { label: "ПОГОДА И ВРЕМЯ СУТОК", right: st.weather ? "ВКЛ" : "ВЫКЛ", act: () => { st.weather = !st.weather; persist(); this.renderList(); } },
+        { label: "ГОЛОСОВОЕ УПРАВЛЕНИЕ", right: Voice.on ? "ВКЛ" : "ВЫКЛ", act: () => { Voice.toggle(); this.renderList(); } },
+        { label: "ПОКАЗЫВАТЬ FPS", right: st.showFPS ? "ВКЛ" : "ВЫКЛ", act: () => { st.showFPS = !st.showFPS; persist(); this.renderList(); } },
+        { label: "ИМЯ ИГРОКА: " + SAVE.name, act: () => this.renameProfile() },
+        { label: "АВАТАР: #" + (SAVE.avatar + 1) + " (из 8)", act: () => { SAVE.avatar = (SAVE.avatar + 1) % 8; persist(); this.renderList(); } },
+        { hdr: "УПРАВЛЕНИЕ" },
+        { label: "ИГРОК 1: СТРЕЛКИ + ПРОБЕЛ", cls: "gray" },
+        { label: "ИГРОК 2: WASD + ENTER", cls: "gray" },
+        { label: "ПАУЗА: P ИЛИ ESC", cls: "gray" },
+        { label: "ГЕЙМПАДЫ ПОДДЕРЖИВАЮТСЯ (Gamepad API)", cls: "gray" },
+        { hdr: "ДАННЫЕ" },
+        { label: "ЭКСПОРТ СОХРАНЕНИЯ В БУФЕР", act: () => this.exportSave() },
+        { label: "ИМПОРТ СОХРАНЕНИЯ", act: () => this.importSave() }
+      ].map(x => Object.assign({ act: () => { } }, x));
+      return { title: "НАСТРОЙКИ", items, sub: "Версия 1.0 — офлайн готов" };
+    }
+    if (kind === "gameover") {
+      const g = this.lastGame;
+      const items = [
+        { label: "ИТОГОВЫЙ СЧЁТ", right: fmt(g.score), cls: "gold" },
+        { label: "УРОВЕНЬ", right: g.levelIndex },
+        { label: "УНИЧТОЖЕНО ВРАГОВ", right: g.stats.kills },
+        { label: "ЗАРАБОТАНО МОНЕТ", right: "+" + g.coinsEarned + " 🪙", cls: "gold" },
+        { hdr: "" },
+        { label: "ИГРАТЬ СНОВА", act: () => this.startGame({ mode: g.mode, level: g.mode === "1p" || g.mode === "2p" ? g.levelIndex : 1 }) },
+        { label: "В МАГАЗИН", act: () => this.openList("shop") },
+        { label: "ГЛАВНОЕ МЕНЮ", act: () => this.show("menu") }
+      ].map(x => Object.assign({ act: () => { } }, x));
+      return { title: g.victory ? "ПОБЕДА!" : "GAME OVER", items, sub: "" };
+    }
+    return { title: "?", items: [] };
+  },
+  showGameOver(g) { this.lastGame = g; this.openList("gameover"); this.sel = 5; this.renderList(); },
+  /* --- Действия --- */
+  startGame(opts) {
+    this.show("game");
+    new Game(opts);
+    Audio_.init(); Audio_.resume();
+  },
+  saveProgress() {
+    const g = Game.cur; if (!g) return;
+    SAVE.progress = { mode: g.mode, level: g.levelIndex, score: g.score, lives: g.players.map(p => p.lives), stars: g.players.map(p => p.stars) };
+    persist(); toast("Игра сохранена");
+  },
+  loadProgress() {
+    const p = SAVE.progress;
+    if (!p) { toast("Нет сохранённой игры", "#d05050"); return; }
+    this.startGame({ mode: p.mode, level: p.level });
+    setTimeout(() => {
+      const g = Game.cur; if (!g) return;
+      g.score = p.score || 0;
+      g.players.forEach((pl, i) => { pl.lives = p.lives[i] ?? 3; pl.stars = p.stars[i] ?? 0; });
+    }, 50);
+  },
+  renameProfile() {
+    const n = prompt("Имя игрока (до 12 символов):", SAVE.name);
+    if (n) { SAVE.name = n.slice(0, 12).toUpperCase(); persist(); this.renderList(); }
+  },
+  resetProgress() {
+    if (!confirm("Удалить ВЕСЬ прогресс, монеты и покупки? Действие необратимо.")) return;
+    localStorage.removeItem(KEY); SAVE = loadSave(); toast("Прогресс сброшен"); this.show("menu");
+  },
+  exportSave() {
+    const s = btoa(unescape(encodeURIComponent(JSON.stringify(SAVE))));
+    navigator.clipboard?.writeText(s);
+    this.modal(`<h3>ЭКСПОРТ СОХРАНЕНИЯ</h3><p class="gray">Код скопирован в буфер обмена:</p>
+      <textarea style="width:100%;height:120px;background:#000;color:#0f0;font-size:9px">${s}</textarea>
+      <div class="btn" onclick="UI.closeModal()">ОК</div>`);
+  },
+  importSave() {
+    const s = prompt("Вставьте код сохранения:");
+    if (!s) return;
+    try { SAVE = deepMerge(loadSave(), JSON.parse(decodeURIComponent(escape(atob(s.trim()))))); persist(); toast("Сохранение загружено", "#70B050"); this.renderList(); }
+    catch (e) { toast("Некорректный код", "#d05050"); }
+  },
+  chooseFlag() {
+    const list = FLAGS.map((f, i) => `${i + 1}. ${f.name}`).join("\n");
+    const n = prompt("Выберите флаг:\n" + list, "1");
+    const f = FLAGS[(parseInt(n) || 1) - 1];
+    if (f) { SAVE.equipped.flag = f.id; persist(); toast("Флаг: " + f.name, "#70B050"); }
+  },
+  customSkinEditor() {
+    // Простой редактор 6x6: строка из 36 символов (# — пиксель)
+    const cur = (SAVE.equipped.custom || SKIN_ART.star).join ? SAVE.equipped.custom.join("") : "";
+    const s = prompt("Пиксель-арт 6x6: 36 символов, '#' = пиксель, '.' = пусто", cur || "..##...####.######.####..#..#.......");
+    if (s && s.length >= 36) {
+      const rows = []; for (let i = 0; i < 6; i++) rows.push(s.slice(i * 6, i * 6 + 6));
+      SAVE.equipped.custom = rows; persist(); toast("Свой скин сохранён", "#70B050");
+    }
+  },
+  mpCreate(mode) {
+    const code = MP.createRoom(mode);
+    this.modal(`<h3>КОМНАТА СОЗДАНА</h3><p>Код комнаты: <span class="gold" style="font-size:18px">${code}</span></p>
+      <p class="gray">Передайте код другу — он введёт его в пункте «ПОДКЛЮЧИТЬСЯ ПО КОДУ».</p>
+      ${MP.connected ? "" : `<div class="warn">Сервер не подключён (CFG.MP_SERVER пуст).<br>
+      TODO: поднять WebSocket-сервер (пример в README) и указать адрес.<br>
+      Сейчас доступен офлайн-режим против ИИ.</div>`}
+      <div class="btn" onclick="UI.closeModal();UI.startGame({mode:'${mode === "pvp" ? "ctf" : "2p"}',level:1})">НАЧАТЬ ЛОКАЛЬНО</div>
+      <div class="btn" style="border-color:#888;color:#888" onclick="UI.closeModal()">ЗАКРЫТЬ</div>`);
+  },
+  mpJoin() {
+    const code = prompt("Введите 4-значный код комнаты:");
+    if (!code) return;
+    MP.joinRoom(code.trim());
+    toast(MP.connected ? "Подключение к " + code : "Нет сервера — офлайн-режим", MP.connected ? "#70B050" : "#d05050");
+  },
+  mpChat() {
+    const msg = prompt("Сообщение в чат:");
+    if (msg) { MP.sendChat(msg); toast("Вы: " + msg, "#5da0f0"); }
+  },
+  tournament() {
+    this.modal(`<h3>ТУРНИРНЫЙ РЕЖИМ</h3>
+      <p>8 игроков, 5 раундов, побеждает набравший максимум очков.</p>
+      <div class="warn">TODO: реализовать турнирную сетку и синхронизацию через сервер.<br>
+      Клиентская часть (комнаты, коды, чат) уже готова в объекте MP.</div>
+      <div class="btn" onclick="UI.closeModal()">ОК</div>`);
+  },
+  /* --- Модальные окна --- */
+  modal(html) { $("#mbox").innerHTML = html; $("#modal").classList.add("on"); },
+  closeModal() { $("#modal").classList.remove("on"); },
+
+  /* --- РЕДАКТОР УРОВНЕЙ --- */
+  buildEditor() {
+    if (!this.editorData) this.editorData = Array.from({ length: 13 }, () => ".".repeat(13).split(""));
+    const grid = $("#edgrid");
+    if (!grid.dataset.built) {
+      grid.innerHTML = "";
+      for (let y = 0; y < 13; y++) for (let x = 0; x < 13; x++) {
+        const d = document.createElement("div");
+        d.dataset.x = x; d.dataset.y = y;
+        const paint = () => { this.editorData[y][x] = this.editorTool; this.paintEditor(); };
+        d.addEventListener("mousedown", paint);
+        d.addEventListener("mouseenter", e => { if (e.buttons === 1) paint(); });
+        grid.appendChild(d);
+      }
+      grid.dataset.built = "1";
+      const tools = [["B", "КИРПИЧ", NES.brickLight], ["T", "СТАЛЬ", NES.steel], ["R", "ВОДА", NES.water],
+      ["F", "ЛЕС", NES.forestA], ["S", "ЛЁД", NES.snowB], [".", "ЛАСТИК", "#000"]];
+      $("#edpal").innerHTML = tools.map(([c, n, col]) =>
+        `<div data-t="${c}" class="${c === this.editorTool ? "on" : ""}"><span class="sw" style="background:${col}"></span>${n}</div>`).join("")
+        + `<div style="border:0;color:#666;margin-top:6px">S — СОХРАНИТЬ<br>P — ИГРАТЬ<br>C — ОЧИСТИТЬ<br>E — КОД<br>I — ИМПОРТ</div>`;
+      $("#edpal").addEventListener("click", e => {
+        const t = e.target.closest("[data-t]"); if (!t) return;
+        this.editorTool = t.dataset.t;
+        $$("#edpal div").forEach(d => d.classList.toggle("on", d === t));
+      });
+    }
+    this.paintEditor();
+  },
+  paintEditor() {
+    const colors = { "B": NES.brickLight, "T": NES.steel, "R": NES.water, "F": NES.forestA, "S": NES.snowB, ".": "#000" };
+    $$("#edgrid div").forEach(d => {
+      const x = +d.dataset.x, y = +d.dataset.y;
+      d.style.background = (x === 6 && y === 12) ? "#886600" : colors[this.editorData[y][x]];
+    });
+  },
+  // Карта редактора -> формат оригинала: 13 строк по 26 символов (тип + hex-маска четвертей)
+  editorRows() {
+    return this.editorData.map((row, y) => row.map((ch, x) => {
+      if (x === 6 && y === 12) return "Ef";        // орёл всегда в центре внизу
+      return ch === "." ? ".." : ch + "f";
+    }).join(""));
+  },
+  editorSave() {
+    const name = prompt("Название уровня:", "МОЙ УРОВЕНЬ " + (SAVE.customLevels.length + 1));
+    if (!name) return;
+    SAVE.customLevels.push({ name: name.toUpperCase(), rows: this.editorRows(), date: today() });
+    SAVE.stats.editorPublished = (SAVE.stats.editorPublished || 0) + 1;
+    persist(); Ach.check(); toast("Уровень сохранён: " + name, "#70B050");
+  },
+  editorCode() {
+    const code = btoa(this.editorRows().join(""));
+    navigator.clipboard?.writeText(code);
+    this.modal(`<h3>КОД УРОВНЯ</h3><p class="gray">Скопирован в буфер — поделитесь с друзьями:</p>
+      <textarea style="width:100%;height:80px;background:#000;color:#0f0;font-size:9px">${code}</textarea>
+      <div class="btn" onclick="UI.closeModal()">ОК</div>`);
+  },
+  editorImport() {
+    const code = prompt("Вставьте код уровня:");
+    if (!code) return;
+    try {
+      const s = atob(code.trim());
+      if (s.length < 338) throw 0;
+      this.editorData = [];
+      for (let i = 0; i < 13; i++) {
+        const line = s.slice(i * 26, i * 26 + 26), row = [];
+        for (let x = 0; x < 13; x++) { const t = line[x * 2]; row.push(t === "." || t === "E" ? "." : t); }
+        this.editorData.push(row);
+      }
+      this.paintEditor(); toast("Уровень загружен", "#70B050");
+    } catch (e) { toast("Некорректный код", "#d05050"); }
+  },
+
+  /* --- Обработка клавиш во всех экранах --- */
+  onKey(e) {
+    const k = e.code;
+    // Модальное окно
+    if ($("#modal").classList.contains("on")) { if (k === "Escape" || k === "Enter") this.closeModal(); return; }
+    if (this.screen === "game") {
+      const g = Game.cur;
+      if (!g) { if (k === "Escape") this.back(); return; }
+      if (k === "KeyP") g.togglePause();
+      if (k === "Escape") { if (g.state === "pause") { this.saveProgress(); this.back(); } else g.togglePause(); }
+      if (k === "F2") this.saveProgress();
+      return;
+    }
+    if (this.screen === "editor") {
+      if (k === "Escape") this.show("menu");
+      if (k === "KeyS") this.editorSave();
+      if (k === "KeyP") this.startGame({ mode: "custom", level: 1, rows: this.editorRows() });
+      if (k === "KeyC") { this.editorData = Array.from({ length: 13 }, () => ".".repeat(13).split("")); this.paintEditor(); }
+      if (k === "KeyE") this.editorCode();
+      if (k === "KeyI") this.editorImport();
+      return;
+    }
+    const items = this.screen === "menu" ? this.menuItems : (this.list ? this.list.items : []);
+    const nav = d => {
+      let i = this.sel;
+      for (let n = 0; n < items.length; n++) {
+        i = (i + d + items.length) % items.length;
+        if (!items[i].hdr) break;
+      }
+      this.sel = i;
+      Audio_.tone(440, 0.03, "square", 0.15);
+      this.screen === "menu" ? this.buildMenu() : this.renderList();
+    };
+    if (k === "ArrowDown") nav(1);
+    else if (k === "ArrowUp") nav(-1);
+    else if (k === "ArrowLeft") { const it = items[this.sel]; if (it && it.left) it.left(); }
+    else if (k === "ArrowRight") { const it = items[this.sel]; if (it && it.rightK) it.rightK(); }
+    else if (k === "Enter" || k === "Space") {
+      const it = items[this.sel];
+      if (it && it.act) { Audio_.tone(880, 0.05, "square", 0.2); it.act(); }
+    }
+    else if (k === "Tab" && this.screen === "list" && this.list.tabs) {
+      this.tab = (this.tab + (e.shiftKey ? -1 : 1) + this.list.tabs.length) % this.list.tabs.length;
+      this.sel = 0; this.renderList();
+    }
+    else if (k === "Escape") { this.screen === "list" ? this.show("menu") : null; }
+  }
+};
+
+/* ============================== 19. ГЛАВНЫЙ ЦИКЛ (60 FPS) ============================== */
+const Loop = {
+  ctx: null, last: 0, acc: 0, step: 1000 / CFG.FPS, fps: 60, frames: 0, fpsTime: 0,
+  start() {
+    this.ctx = $("#game").getContext("2d", { alpha: false });
+    this.ctx.imageSmoothingEnabled = false;
+    this.last = performance.now();
+    requestAnimationFrame(t => this.tick(t));
+  },
+  tick(t) {
+    requestAnimationFrame(t2 => this.tick(t2));
+    let dt = t - this.last; this.last = t;
+    if (dt > 250) dt = 250;                 // защита от «прыжка» после сворачивания вкладки
+    this.acc += dt;
+    let steps = 0;
+    while (this.acc >= this.step && steps < 5) {
+      if (Game.cur) Game.cur.update();
+      this.acc -= this.step; steps++;
+    }
+    // Счётчик FPS
+    this.frames++; this.fpsTime += dt;
+    if (this.fpsTime >= 1000) { this.fps = this.frames; this.frames = 0; this.fpsTime = 0; }
+    // Отрисовка
+    const ctx = this.ctx;
+    if (Game.cur) Game.cur.draw(ctx);
+    else { ctx.fillStyle = "#000"; ctx.fillRect(0, 0, CFG.CW, CFG.CH); }
+  }
+};
+
+/* ============================== 20. ЗАПУСК ============================== */
+const isTouch = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
+function fitStage() {
+  const s = Math.max(1, Math.min(window.innerWidth / CFG.CW, window.innerHeight / CFG.CH));
+  const scale = window.innerWidth < 700 ? s : Math.max(1, Math.floor(s * 2) / 2);   // на десктопе — кратный масштаб
+  $("#stage").style.transform = `translate(-50%,-50%) scale(${scale})`;
+}
+window.addEventListener("resize", fitStage);
+window.addEventListener("orientationchange", () => setTimeout(fitStage, 200));
+
+function boot() {
+  fitStage();
+  buildPatterns();   // предрендер текстур местности
+  Input.init();
+  Audio_.enabled = SAVE.settings.sound !== false;
+  Loop.start();
+  UI.show("menu");
+  // Ежедневный бонус за вход
+  const b = dailyBonus();
+  if (b) setTimeout(() => toast(`ЕЖЕДНЕВНЫЙ БОНУС +${b.amount} 🪙 (стрик ${b.streak} дн.)`, "#f0c020"), 700);
+  Ach.check();
+  // Онлайн — не блокирует запуск; при отсутствии сети остаёмся офлайн
+  Online.init().catch(() => { });
+  // Автосохранение прогресса каждые 30 секунд
+  setInterval(() => { if (Game.cur && Game.cur.state === "play") UI.saveProgress && SAVE.progress !== undefined && (SAVE.progress = { mode: Game.cur.mode, level: Game.cur.levelIndex, score: Game.cur.score, lives: Game.cur.players.map(p => p.lives), stars: Game.cur.players.map(p => p.stars) }, persist()); }, 30000);
+  // Предупреждение о потере данных при закрытии во время игры
+  window.addEventListener("beforeunload", () => { if (Game.cur) UI.saveProgress(); });
+  console.log("%cBATTLE CITY 1990 — расширенная версия загружена", "color:#C09848;font-weight:bold");
+  console.log("Онлайн: " + Online.mode + " | Платежи: " + (Pay.isLive() ? "live" : "демо"));
+}
+document.addEventListener("DOMContentLoaded", boot);
+</script>
+</body>
+</html>
