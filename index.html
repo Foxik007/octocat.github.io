@@ -732,8 +732,8 @@ const SHOP = {
     { id: "speed2", name: "СКОРОСТЬ +20%", price: 1000, grp: "speed", lv: 2, need: "speed1" },
     { id: "armor1", name: "БРОНЯ: 1 ПОПАДАНИЕ", price: 700, grp: "armor", lv: 1 },
     { id: "armor2", name: "БРОНЯ: 2 ПОПАДАНИЯ", price: 1500, grp: "armor", lv: 2, need: "armor1" },
-    { id: "range1", name: "ДАЛЬНОСТЬ +15%", price: 600, grp: "range", lv: 1 },
-    { id: "range2", name: "ДАЛЬНОСТЬ +30%", price: 1200, grp: "range", lv: 2, need: "range1" },
+    { id: "range1", name: "СКОРОСТЬ СНАРЯДА +15%", price: 600, grp: "range", lv: 1 },
+    { id: "range2", name: "СКОРОСТЬ СНАРЯДА +30%", price: 1200, grp: "range", lv: 2, need: "range1" },
     { id: "reload1", name: "ПЕРЕЗАРЯДКА +20%", price: 800, grp: "reload", lv: 1 }
   ],
   effect: [
@@ -1130,14 +1130,20 @@ class Field {
     let x0, x1, y0, y1;
     // Пара юнитов, центрированная на пуле: берём ближайшую к её центру границу юнитов
     const span = c => { const m = Math.round(c / U); return [Math.max(0, m - 1), Math.min(LAST, m)]; };
+    /* Просека шириной в два юнита никогда не доставала до КРАЙНЕГО юнита поля.
+       Танк не может встать левее нуля, поэтому его снаряд всегда идёт по юнитам
+       1-2 (и 49-50 у правой стены) — кирпич, стоящий вплотную к краю, вдоль стены
+       расстрелять было нельзя, и на 35-м уровне такие блоки оставались навсегда.
+       Если просека упирается в край — дотягиваем её до самого края. */
+    const stretch = ([a, b2]) => [a === 1 ? 0 : a, b2 === LAST - 1 ? LAST : b2];
     if (b.dir === 0 || b.dir === 2) {
       const edge = b.dir === 0 ? b.y : b.y + b.h - 1;
       y0 = y1 = Math.floor(edge / U);            // глубина — ровно один юнит (4 px NES)
-      [x0, x1] = span(b.x + b.w / 2);            // ширина — два юнита (8 px NES) по центру пули
+      [x0, x1] = stretch(span(b.x + b.w / 2));   // ширина — два юнита (8 px NES) по центру пули
     } else {
       const edge = b.dir === 3 ? b.x : b.x + b.w - 1;
       x0 = x1 = Math.floor(edge / U);
-      [y0, y1] = span(b.y + b.h / 2);
+      [y0, y1] = stretch(span(b.y + b.h / 2));
     }
     for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
       const t = this.at(tx, ty);
@@ -1211,18 +1217,19 @@ class Bullet {
   constructor(owner, x, y, dir, power, style) {
     this.owner = owner; this.x = x; this.y = y; this.w = 8; this.h = 8;
     this.dir = dir; this.power = power; this.style = style || "normal";
-    this.speed = owner.isPlayer ? (owner.stars >= 1 ? 6 : 4.2)
+    this.speed = owner.isPlayer
+      ? (owner.stars >= 1 ? 6 : 4.2) * (1 + (SAVE.upgrades.range || 0) * 0.15)
       : (ENEMY_TYPES[owner.kind] && ENEMY_TYPES[owner.kind].fastBullet ? 6 : 4);
-    this.dead = false; this.traveled = 0;
-    this.maxRange = 9999;
-    if (owner.isPlayer) this.maxRange = 640 * (1 + (SAVE.upgrades.range || 0) * 0.15);
+    // Дальность снаряда не ограничена — как в оригинале, он летит, пока во что-нибудь
+    // не попадёт. Прежний предел (640 px у игрока) был больше поля (416 px), то есть
+    // не работал вовсе, зато улучшение «дальность» из магазина не давало ничего.
+    this.dead = false;
     this.trail = [];
   }
   update(g) {
     for (let i = 0; i < 2; i++) {   // подшаг для точной коллизии на высокой скорости
       const st = this.speed / 2;
-      this.x += DX[this.dir] * st; this.y += DY[this.dir] * st; this.traveled += st;
-      if (this.traveled > this.maxRange) { this.dead = true; return; }
+      this.x += DX[this.dir] * st; this.y += DY[this.dir] * st;
       const r = g.field.bulletHit(this, this.power);
       if (r.base) {
         const bi = r.baseIndex || 0;
@@ -1279,7 +1286,7 @@ class Tank {
   constructor(g, x, y, dir) {
     this.g = g; this.x = x; this.y = y; this.w = 32; this.h = 32;
     this.dir = dir; this.moving = false; this.speed = 1.0;
-    this.bullets = 0; this.maxBullets = 1; this.cooldown = 0; this.reloadTime = 22;
+    this.bullets = 0; this.maxBullets = 1; this.cooldown = 0; this.reloadTime = 14;
     this.dead = false; this.stars = 0; this.hp = 1; this.armor = 0;
     this.trackPhase = 0; this.spawnTimer = 0; this.shield = 0; this.slide = 0;
     this.isPlayer = false; this.colors = TANK_COLORS.e_basic;
@@ -1371,7 +1378,7 @@ class Player extends Tank {
     this.baseSpeed = 1.05 * (1 + (u.speed || 0) * 0.10);
     this.speed = this.baseSpeed;
     this.armorMax = (u.armor || 0); this.armor = this.armorMax;
-    this.reloadTime = Math.round(22 * (1 - (u.reload || 0) * 0.20));
+    this.reloadTime = Math.round(14 * (1 - (u.reload || 0) * 0.20));
   }
   update(input) {
     if (this.spawnTimer > 0) { this.spawnTimer--; return; }
@@ -1417,6 +1424,8 @@ const ENEMY_TYPES = {
   boss: { speed: 0.7, hp: 5, score: 1000, coins: 50, colors: "e_boss", fireRate: 0.021 }
 };
 // Броневой танк в оригинале меняет цвет по мере повреждений
+/* Точки появления врагов — верхний ряд поля 13x13: клетки 0, 6 и 12 */
+const SPAWN_X = { left: 0, center: 6 * 32, right: 12 * 32 };
 const ARMOR_COLORS = ["e_armor_1", "e_armor_2", "e_armor_3", "e_armor"];
 class Enemy extends Tank {
   constructor(g, x, y, kind, bonus) {
@@ -1426,7 +1435,8 @@ class Enemy extends Tank {
     this.hp = t.hp; this.maxHp = t.hp; this.score = t.score; this.coins = t.coins;
     this.colors = TANK_COLORS[t.colors]; this.fireRate = t.fireRate;
     this.bonus = !!bonus;                 // «красный» танк с бонусом
-    this.spawnTimer = 60; this.dirTimer = 0; this.reloadTime = kind === "boss" ? 26 : 40;
+    this.spawnTimer = 60; this.dirTimer = 0; this.stuckFrames = 0;
+    this.reloadTime = kind === "boss" ? 26 : 40;
     this.maxBullets = kind === "boss" ? 2 : 1;
     this.frozen = 0;
   }
@@ -1436,7 +1446,17 @@ class Enemy extends Tank {
     if (this.frozen > 0) { this.frozen--; return; }
     this.moving = true;
     if (this.dirTimer-- <= 0) this.chooseDir();
-    if (!this.move(this.dir)) this.dirTimer = 0;   // упёрлись — меняем направление
+    if (this.move(this.dir)) this.stuckFrames = 0;
+    else {
+      this.dirTimer = 0;                           // упёрлись — меняем направление
+      // chooseDir мог выдать то же самое направление, и танк тёрся о соседа
+      // секундами. После 8 неудачных кадров уходим заведомо в другую сторону.
+      if (++this.stuckFrames >= 8) {
+        this.stuckFrames = 0;
+        this.dir = pick([0, 1, 2, 3].filter(d => d !== this.dir));
+        this.dirTimer = 20 + rnd(40);
+      }
+    }
     if (Math.random() < this.fireRate * (1 + this.g.difficulty * 0.4)) this.fire();
   }
   /* ИИ выбора направления — как в оригинале: движение преимущественно случайное
@@ -1657,7 +1677,10 @@ const Voice = {
 };
 
 /* ============================== 12. ПОГОДА И ВРЕМЯ СУТОК ============================== */
-const WEATHER = ["none", "none", "fog", "rain", "night"];
+// «night» из набора убрана: затемнение всего поля с фонариком вокруг танка
+// перекрывало карту и мешало играть. Класс Weather ночь по-прежнему умеет
+// рисовать — она просто больше не выпадает случайно.
+const WEATHER = ["none", "none", "fog", "rain"];
 class Weather {
   constructor(kind) {
     this.kind = kind; this.drops = [];
@@ -1797,7 +1820,9 @@ class Game {
         if (sc > bestScore) { bestScore = sc; best = g; }
       }
       best.left--;
-      q.push({ kind: best.kind, bonus: (i === 3 || i === 10 || i === 17) });   // 4-й, 11-й и 18-й — с бонусом
+      // Оригинал ронял бонус с 4-го, 11-го и 18-го танка — три штуки на 20 врагов,
+      // и то часть их падала в воду. Делаем каждый четвёртый: пять за уровень.
+      q.push({ kind: best.kind, bonus: (i + 1) % 4 === 0 });
     }
     // В бесконечном режиме и на поздних волнах усиливаем состав
     if (this.mode === "endless" || this.mode === "survival") {
@@ -1809,13 +1834,52 @@ class Game {
     return q;
   }
   /* --- Вспомогательные --- */
+  /* Занята ли клетка чужим корпусом.
+     ВАЖНО: танк в анимации появления тоже считается препятствием. Раньше он
+     пропускался, поэтому сосед спокойно въезжал в него, а через секунду оба
+     оказывались в одной точке и намертво блокировали друг друга. */
   tankAt(x, y, self) {
     const r = { x: x + 2, y: y + 2, w: 28, h: 28 };
     for (const t of this.allTanks()) {
-      if (t === self || t.dead || t.spawnTimer > 0) continue;
+      if (t === self || t.dead) continue;
       if (hit(r, { x: t.x + 2, y: t.y + 2, w: 28, h: 28 })) return t;
     }
     return null;
+  }
+  // Сдвиг танка на dx,dy, если там нет стены и это внутри поля
+  nudgeTank(t, dx, dy) {
+    const nx = clamp(t.x + dx, 0, CFG.FIELD - t.w), ny = clamp(t.y + dy, 0, CFG.FIELD - t.h);
+    if (nx === t.x && ny === t.y) return false;
+    if (!this.field.canMove(nx, ny, t.w, t.h)) return false;
+    t.x = nx; t.y = ny;
+    return true;
+  }
+  /* Расталкивание слипшихся танков.
+     Два пересекающихся корпуса взаимно блокируют tryMove со всех четырёх сторон —
+     танки залипают друг в друге до конца уровня. Пересечение всё же случается:
+     появление на занятой точке, инерция на льду, приём сетевого снимка, respawn
+     игрока под вражеским танком. Раз в кадр разводим такие пары на 1 px по оси
+     наименьшего перекрытия — за полсекунды они расходятся, рывка не видно. */
+  unstickTanks() {
+    const list = this.allTanks().filter(t => !t.dead);
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i], b = list[j];
+        const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+        const oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+        if (ox <= 4 || oy <= 4) continue;          // те же 2 px зазора, что и в tankAt
+        // По какой оси выбираться ближе, ту и берём; вторая ось — запасной вариант
+        const axes = ox <= oy ? [[1, 0], [0, 1]] : [[0, 1], [1, 0]];
+        for (const [kx, ky] of axes) {
+          const s = kx ? (a.x <= b.x ? -1 : 1) : (a.y <= b.y ? -1 : 1);
+          const ma = this.nudgeTank(a, kx * s, ky * s);
+          const mb = this.nudgeTank(b, -kx * s, -ky * s);
+          // Один упёрся в стену — второго отводим на двойной шаг, иначе не разойдутся
+          if (ma !== mb) this.nudgeTank(ma ? a : b, kx * s * (ma ? 1 : -1), ky * s * (ma ? 1 : -1));
+          if (ma || mb) break;                     // разошлись — вторая ось не нужна
+        }
+      }
+    }
   }
   allTanks() { return this.players.concat(this.enemies); }
   alivePlayers() { return this.players.filter(p => !p.dead && p.spawnTimer <= 0); }
@@ -1922,6 +1986,7 @@ class Game {
         if (hit(pu, p.rect())) { p.powerUp(pu.type); pu.dead = true; this.score += 500; }
       }
     }
+    this.unstickTanks();
     // Прочее
     this.explosions.forEach(e => e.update());
     this.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; });
@@ -2004,12 +2069,19 @@ class Game {
     SAVE.coins += c; this.coinsEarned += c;
     // Бонус выпадает из «красного» танка
     if (e.bonus) this.dropPowerUp();
+    else if (chance(0.08)) this.dropPowerUp();          // редкий бонус с обычного танка
     if (this.mode === "survival" && chance(0.25)) this.dropPowerUp();
     this.enemiesLeft--;
   }
   dropPowerUp() {
     const type = pick(POWERUP_TYPES);
-    const x = 32 + rnd(11) * 32, y = 32 + rnd(10) * 32;
+    /* Кладём бонус только туда, куда танк реально доедет. Раньше клетка бралась
+       случайно, без проверки, и бонус регулярно ложился в воду, сталь или кусты
+       за водой — до него было не добраться, и он молча истекал. */
+    const free = [];
+    for (let cy = 1; cy < 12; cy++) for (let cx = 1; cx < 12; cx++)
+      if (this.field.canMove(cx * 32, cy * 32, 32, 32)) free.push([cx * 32, cy * 32]);
+    const [x, y] = free.length ? pick(free) : [32 + rnd(11) * 32, 32 + rnd(10) * 32];
     this.powerups.push(new PowerUp(x, y, type));
     Audio_.bonusAppear();
   }
@@ -2025,9 +2097,19 @@ class Game {
     if (this.enemies.length >= CFG.MAX_ENEMIES_ON_SCREEN + Math.floor(this.difficulty)) return;
     if (--this.spawnTimer > 0) return;
     this.spawnTimer = Math.max(60, 190 - this.levelIndex * 3 - this.wave * 5);
-    const pts = [0, 192, 384];
-    const x = pts[this.spawnPoint % 3]; this.spawnPoint++;
-    if (this.tankAt(x, 0, null)) { this.spawnTimer = 30; return; }
+    /* Три точки появления в верхнем ряду, как в оригинале: левый край, центр и
+       правый край поля 13x13 (клетки 0, 6 и 12). Идём по кругу, но занятую точку
+       пропускаем и берём следующую свободную — иначе очередь упиралась в один
+       вход и все танки выезжали оттуда же. */
+    const pts = [SPAWN_X.left, SPAWN_X.center, SPAWN_X.right];
+    let x = -1;
+    for (let i = 0; i < pts.length; i++) {
+      const c = pts[(this.spawnPoint + i) % pts.length];
+      if (!this.tankAt(c, 0, null) && this.field.canMove(c, 0, 32, 32)) {
+        x = c; this.spawnPoint = (this.spawnPoint + i + 1) % pts.length; break;
+      }
+    }
+    if (x < 0) { this.spawnTimer = 30; return; }   // все три входа заняты — ждём
     const spec = this.enemyQueue.shift();
     this.enemies.push(new Enemy(this, x, 0, spec.kind, spec.bonus));
   }
