@@ -41,6 +41,7 @@ canvas{display:block;image-rendering:pixelated;image-rendering:-moz-crisp-edges;
 .list::-webkit-scrollbar{width:6px}
 .list::-webkit-scrollbar-thumb{background:#404040}
 .row{display:flex;align-items:center;gap:6px;padding:2px 4px;white-space:nowrap}
+.card.row{white-space:normal}
 .row.sel{background:#1a1a1a;outline:1px solid #C09848}
 .row .cur{width:10px;color:#C09848}
 .row.sel .cur::after{content:"\25BA"}
@@ -52,6 +53,24 @@ canvas{display:block;image-rendering:pixelated;image-rendering:-moz-crisp-edges;
 .tag.eq{border-color:#5da0f0;color:#5da0f0}
 .tag.lock{border-color:#8a3030;color:#c05050}
 .price{color:#f0c020}
+/* --- Магазин карточками: у каждого товара живое превью --- */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:7px;padding:4px 2px}
+.card{border:1px solid #2e2e2e;background:#0c0c0c;padding:6px 4px;display:flex;flex-direction:column;
+      align-items:center;gap:4px;cursor:pointer;transition:border-color .12s,background .12s,transform .12s}
+.card:hover{border-color:#5a5a5a}
+.card.sel{border-color:#C09848;background:#17120a;transform:translateY(-2px)}
+.card.own{border-color:#3d5a30}
+.card.eq{border-color:#5da0f0}
+.card.lock{opacity:.45}
+.card canvas{image-rendering:pixelated;width:72px;height:72px;background:#000;border:1px solid #1c1c1c}
+.card .cname{font-size:9px;line-height:1.35;text-align:center;min-height:26px;color:#d8d8d8;white-space:normal;overflow-wrap:anywhere;width:100%}
+.card.sel .cname{color:#fff}
+.card .cfoot{display:flex;align-items:center;gap:4px;min-height:14px}
+.card .cprice{font-size:10px;color:#f0c020}
+.card .ctag{font-size:8px;padding:0 3px;border:1px solid #444;color:#9a9a9a}
+.card .ctag.own{border-color:#70B050;color:#70B050}
+.card .ctag.eq{border-color:#5da0f0;color:#5da0f0}
+.card .ctag.lock{border-color:#8a3030;color:#c05050}
 .hint{flex:none;color:#6a6a6a;font-size:9px;border-top:1px solid #262626;
   padding-top:5px;margin-top:5px}
 .gold{color:#f0c020}.grn{color:#70B050}.red{color:#d05050}.blu{color:#5da0f0}
@@ -811,20 +830,27 @@ function drawTank(ctx, x, y, dir, colors, opt = {}) {
   }
 }
 // Эмблемы (скины) 6x6 в центре корпуса
+/* Эмблемы 8x8 на корпусе. Были 6x6 одним цветом — на танке это читалось как
+   бесформенное пятно. Теперь крупнее и с тёмной подложкой на пиксель ниже:
+   контур отделяет рисунок от корпуса, и эмблема видна на любом цвете танка. */
 const SKIN_ART = {
-  star: ["..##..", ".####.", "######", ".####.", ".#..#.", "......"],
-  bolt: ["...##.", "..##..", ".####.", "..##..", ".##...", "##...."],
-  skull: [".####.", "#.##.#", "######", ".####.", ".#.#..", "......"],
-  flame: ["..#...", ".###..", "#####.", "#####.", ".###..", "..#..."],
-  dragon: ["#....#", "######", ".####.", "######", "#.##.#", "..##.."],
-  flag: ["####..", "####..", "####..", "#.....", "#.....", "#....."]
+  star: ["...##...", "...##...", "..####..", "########", ".######.", "..####..", ".##..##.", "##....##"],
+  bolt: ["....###.", "...###..", "..###...", ".######.", "..####..", "..###...", ".###....", "###....."],
+  skull: ["..####..", ".######.", "##.##.##", "##.##.##", "########", ".##..##.", ".######.", "..#..#.."],
+  flame: ["...#....", "..##....", ".###.#..", ".######.", "########", "########", ".######.", "..####.."],
+  dragon: ["#......#", "##....##", "###..###", "########", ".######.", "..####..", "...##...", "..#..#.."],
+  flag: ["#######.", "#######.", "#######.", "#######.", "#.......", "#.......", "#.......", "#......."]
 };
 function drawSkin(ctx, x, y, skin, s, data) {
   const art = skin === "custom" ? (data || SKIN_ART.star) : (SKIN_ART[skin] || SKIN_ART.star);
   const col = skin === "flag" ? (data || "#e04040") : "#ffffff";
-  ctx.fillStyle = col;
-  for (let r = 0; r < 6; r++) for (let c = 0; c < 6; c++)
-    if (art[r] && art[r][c] === "#") ctx.fillRect(x + (5 + c) * s, y + (4 + r) * s, s, s);
+  const n = art.length, w = art[0].length;
+  const ox = x + (8 - w / 2) * s, oy = y + 6 * s;            // ровно по центру корпуса
+  for (const [dx, dy, c] of [[1, 1, "rgba(0,0,0,.55)"], [0, 0, col]]) {
+    ctx.fillStyle = c;
+    for (let r = 0; r < n; r++) for (let cc = 0; cc < w; cc++)
+      if (art[r] && art[r][cc] === "#") ctx.fillRect(ox + (cc + dx) * s, oy + (r + dy) * s, s, s);
+  }
 }
 /* ============================== 6. СОХРАНЕНИЕ / ПРОФИЛЬ (localStorage) ============================== */
 const KEY = "battlecity_save_v1";
@@ -885,7 +911,7 @@ function addCoins(n, why) {
 /* ============================== 7. КАТАЛОГ МАГАЗИНА ============================== */
 const SHOP = {
   color: [
-    { id: "yellow", name: "ЖЁЛТЫЙ (КЛАССИКА)", price: 0, lvl: 0 },
+    { id: "yellow", name: "ЖЁЛТЫЙ", price: 0, lvl: 0 },
     { id: "red", name: "КРАСНЫЙ", price: 200, lvl: 3 },
     { id: "blue", name: "СИНИЙ", price: 300, lvl: 5 },
     { id: "green", name: "ЗЕЛЁНЫЙ", price: 400, lvl: 8 },
@@ -893,7 +919,7 @@ const SHOP = {
     { id: "purple", name: "ФИОЛЕТОВЫЙ", price: 800, lvl: 18 },
     { id: "orange", name: "ОРАНЖЕВЫЙ", price: 1000, lvl: 25 },
     { id: "white", name: "БЕЛЫЙ", price: 2000, lvl: 35 },
-    { id: "gold", name: "ЗОЛОТОЙ (ТОП-10 РЕЙТИНГА)", price: 5000, lvl: 0, top10: true }
+    { id: "gold", name: "ЗОЛОТОЙ", price: 5000, lvl: 0, top10: true }
   ],
   skin: [
     { id: "classic", name: "КЛАССИЧЕСКИЙ", price: 0 },
@@ -902,22 +928,21 @@ const SHOP = {
     { id: "skull", name: "ЧЕРЕП", price: 500 },
     { id: "flame", name: "ПЛАМЯ", price: 700 },
     { id: "dragon", name: "ДРАКОН", price: 1000 },
-    { id: "flag", name: "ФЛАГ СТРАНЫ (10 НА ВЫБОР)", price: 500 },
-    { id: "custom", name: "ПИКСЕЛЬ-АРТ (СВОЙ РИСУНОК)", price: 1000 }
+    { id: "flag", name: "ФЛАГ СТРАНЫ", price: 500 },
+    { id: "custom", name: "СВОЙ РИСУНОК", price: 1000 }
   ],
   shot: [
     { id: "normal", name: "ОБЫЧНЫЙ", price: 0 },
-    { id: "laser", name: "ЛАЗЕРНЫЙ (КРАСНЫЙ ЛУЧ)", price: 400 },
-    { id: "plasma", name: "ПЛАЗМЕННЫЙ (ЗЕЛЁНЫЙ + ИСКРЫ)", price: 600 },
-    { id: "fire", name: "ОГНЕННЫЙ (ТРАССЕР)", price: 800 },
-    { id: "electro", name: "ЭЛЕКТРИЧЕСКИЙ (РАЗРЯДЫ)", price: 1000 },
-    { id: "firework", name: "ФЕЙЕРВЕРК (РАЗЛЕТ ПРИ ВЗРЫВЕ)", price: 1500 }
+    { id: "laser", name: "ЛАЗЕРНЫЙ", price: 400 },
+    { id: "plasma", name: "ПЛАЗМЕННЫЙ", price: 600 },
+    { id: "fire", name: "ОГНЕННЫЙ", price: 800 },
+    { id: "electro", name: "ЭЛЕКТРИЧЕСКИЙ", price: 1000 },
+    { id: "firework", name: "ФЕЙЕРВЕРК", price: 1500 }
   ],
   effect: [
-    { id: "trail", name: "СЛЕД ОТ ТАНКА (ДЫМ/ОГНИ)", price: 400 },
-    { id: "spawnfx", name: "АНИМАЦИЯ СТАРТА (ВСПЫШКА)", price: 300 },
-    { id: "boom", name: "РАЗНОЦВЕТНЫЕ ВЗРЫВЫ", price: 500 },
-    { id: "tracks", name: "АНИМИРОВАННЫЕ ГУСЕНИЦЫ", price: 400 }
+    { id: "trail", name: "СЛЕД ОТ ТАНКА", price: 400 },
+    { id: "spawnfx", name: "ВСПЫШКА НА СТАРТЕ", price: 300 },
+    { id: "boom", name: "РАЗНОЦВЕТНЫЕ ВЗРЫВЫ", price: 500 }
   ]
 };
 const FLAGS = [
@@ -1521,6 +1546,15 @@ class Tank {
     const art = SPAWN_ART[[0, 1, 2, 1][p]];
     const col = p % 2 ? "#f8f8f8" : "#5da0f0";
     drawArt(ctx, ox + this.x, oy + this.y, art, () => col, 2);
+    /* Купленная «вспышка на старте»: расходящееся кольцо поверх звезды.
+       Товар был в магазине с самого начала, но нигде не проверялся — деньги
+       списывались, а на экране ничего не менялось. */
+    if (this.isPlayer && SAVE.owned.effect.includes("spawnfx")) {
+      const k = 1 - this.spawnTimer / 60, r = 6 + k * 26;
+      ctx.strokeStyle = "rgba(240,192,32," + (1 - k).toFixed(2) + ")";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(ox + this.x + 16 - r, oy + this.y + 16 - r, r * 2, r * 2);
+    }
   }
 }
 
@@ -3251,6 +3285,7 @@ const UI = {
   /* --- Переключение экранов --- */
   menuSel: 0,                    // где стоял курсор, когда уходили из главного меню
   show(name) {
+    this.stopCardAnim();                 // холсты магазина живут только на своём экране
     // Запоминаем строку меню, из которой уходим, и возвращаем курсор на неё при
     // возврате. Раньше курсор был общий на все экраны: «назад» из достижений
     // ставило его туда, где он остался в списке достижений, то есть в начало.
@@ -3314,6 +3349,96 @@ const UI = {
     this.bindClicks(box, items, () => this.buildMenu());
   },
   // Клик/тап по строке: выделяет её и выполняет действие (управление без клавиатуры)
+  /* --- Магазин: сетка карточек с анимированным превью ---------------------
+     Раньше товары были обычными строками текста: цвет, скин и эффект выстрела
+     покупались вслепую, увидеть их можно было только после покупки. Теперь у
+     каждой карточки свой холст, который перерисовывается по кадрам. */
+  renderCards(L) {
+    $("#listBody").innerHTML = '<div class="cards">' + L.items.map((it, i) => {
+      const cls = [it.eq ? "eq" : it.own ? "own" : "", it.lock ? "lock" : "", i === this.sel ? "sel" : ""]
+        .filter(Boolean).join(" ");
+      return `<div class="card row ${cls}">
+        <canvas width="48" height="48" data-i="${i}"></canvas>
+        <div class="cname">${esc(it.label)}</div>
+        <div class="cfoot">
+          ${it.tag ? `<span class="ctag ${it.tagCls || ""}">${esc(it.tag)}</span>` : ""}
+          ${it.right ? `<span class="cprice">${esc(it.right)}</span>` : ""}
+        </div></div>`;
+    }).join("") + "</div>";
+    const cards = $("#listBody").querySelectorAll(".card");
+    // сколько карточек помещается в ряд — для навигации стрелками вверх/вниз
+    this.cardCols = 1;
+    if (cards.length) {
+      const top = cards[0].offsetTop;
+      this.cardCols = Math.max(1, [...cards].filter(c => c.offsetTop === top).length);
+    }
+    const sel = $("#listBody").querySelector(".card.sel");
+    if (sel) sel.scrollIntoView({ block: "nearest" });
+    this.bindClicks($("#listBody"), L.items, () => this.renderList());
+    this.startCardAnim([...cards].map(c => c.querySelector("canvas")), L.items);
+  },
+  startCardAnim(canvases, items) {
+    this.stopCardAnim();
+    const ctxs = canvases.map(c => c.getContext("2d"));
+    ctxs.forEach(c => c.imageSmoothingEnabled = false);
+    const tick = () => {
+      const t = now();
+      for (let i = 0; i < ctxs.length; i++) {
+        const pv = items[i] && items[i].preview;
+        if (pv) this.drawPreview(ctxs[i], 48, 48, pv, t);
+      }
+      this._cardAnim = requestAnimationFrame(tick);
+    };
+    tick();
+  },
+  stopCardAnim() { if (this._cardAnim) { cancelAnimationFrame(this._cardAnim); this._cardAnim = 0; } },
+  /* Отрисовка одного превью. kind: color | skin | shot | effect */
+  drawPreview(ctx, W, H, pv, t) {
+    ctx.fillStyle = "#0a0a0a"; ctx.fillRect(0, 0, W, H);
+    const phase = Math.floor(t / 110) % 2;
+    const cx = (W - 32) / 2;
+    if (pv.kind === "color" || pv.kind === "skin") {
+      const colId = pv.kind === "color" ? pv.id : SAVE.equipped.color;
+      const skin = pv.kind === "skin" ? pv.id : SAVE.equipped.skin;
+      // Смотрит вверх и не крутится: на повороте эмблема ложилась боком и
+      // разглядеть, что покупаешь, было нельзя.
+      drawTank(ctx, cx, (H - 32) / 2, 0, TANK_COLORS[colId] || TANK_COLORS.yellow, {
+        art: "p1", trackPhase: phase, skin,
+        skinData: skin === "flag" ? ((FLAGS.find(f => f.id === SAVE.equipped.flag) || FLAGS[0]).c)
+          : (skin === "custom" ? SAVE.equipped.custom : null)
+      });
+    } else if (pv.kind === "shot") {
+      drawTank(ctx, cx, H - 34, 0, TANK_COLORS[SAVE.equipped.color] || TANK_COLORS.yellow,
+        { art: "p1", trackPhase: phase });
+      // снаряд летит вверх и повторяется
+      const travel = (t / 4) % (H - 6);
+      const by = H - 30 - travel;
+      const fake = { x: 0, y: 0, dir: 0, style: pv.id, trail: [] };
+      for (let k = 1; k <= 6; k++) fake.trail.push({ x: 0, y: k * 3 });
+      if (by > -8) Bullet.prototype.draw.call(fake, ctx, W / 2 - 4, by);
+    } else if (pv.kind === "effect") {
+      const col = TANK_COLORS[SAVE.equipped.color] || TANK_COLORS.yellow;
+      if (pv.id === "trail") {
+        // танк стоит на месте, дым уходит назад — так эффект виден целиком
+        for (let k = 0; k < 7; k++) {
+          const off = ((t / 26) + k * 4) % 22;
+          ctx.fillStyle = "rgba(160,160,160," + (0.45 * (1 - off / 22)).toFixed(2) + ")";
+          ctx.fillRect(W / 2 - 4 + (k % 3) * 3, H / 2 + 8 + off, 3, 3);
+        }
+        drawTank(ctx, cx, (H - 32) / 2 - 6, 0, col, { art: "p1", trackPhase: phase });
+      } else if (pv.id === "spawnfx") {
+        const f = Math.floor(t / 90) % 4, k = (t % 900) / 900, r = 6 + k * 20;
+        drawArt(ctx, cx, (H - 32) / 2, SPAWN_ART[[0, 1, 2, 1][f]], () => f % 2 ? "#f8f8f8" : "#5da0f0", 2);
+        ctx.strokeStyle = "rgba(240,192,32," + (1 - k).toFixed(2) + ")"; ctx.lineWidth = 2;
+        ctx.strokeRect(W / 2 - r, H / 2 - r, r * 2, r * 2);
+      } else {
+        const f = Math.floor(t / 110) % BOOM_ART.length;
+        const tint = ["#ff40ff", "#40ffff", "#ffff40", "#40ff40", "#ff8040"][Math.floor(t / 550) % 5];
+        const pal = { W: "#f8f8f8", L: tint, M: tint };
+        drawArt(ctx, cx, (H - 32) / 2, BOOM_ART[f], ch => pal[ch], 2);
+      }
+    }
+  },
   bindClicks(box, items, rerender) {
     box.querySelectorAll(".row").forEach((row, i) => {
       row.addEventListener("click", () => {
@@ -3338,7 +3463,8 @@ const UI = {
     $("#listTabs").innerHTML = (L.tabs || []).map((t, i) =>
       `<span class="tab ${i === this.tab ? "on" : ""}">${t}</span>`).join("");
     this.sel = clamp(this.sel, 0, Math.max(0, L.items.length - 1));
-    $("#listBody").innerHTML = L.items.map((it, i) => {
+    if (L.cards) this.renderCards(L);
+    else $("#listBody").innerHTML = L.items.map((it, i) => {
       if (it.hdr !== undefined) return it.hdr
         ? `<div class="row"><span class="cur"></span><span class="name gold">— ${it.hdr} —</span></div>`
         : `<div class="row"><span class="cur"></span><span class="name"></span></div>`;
@@ -3351,8 +3477,10 @@ const UI = {
     $("#listHint").innerHTML = L.hint || (isTouch
       ? "ТАП — выбрать &nbsp; ПОВТОРНЫЙ ТАП — подтвердить &nbsp; ВКЛАДКИ — сверху"
       : "&uarr;&darr; выбор &nbsp; ENTER действие &nbsp; TAB вкладка &nbsp; ESC назад");
-    const s = $("#listBody").querySelector(".row.sel"); if (s) s.scrollIntoView({ block: "nearest" });
-    this.bindClicks($("#listBody"), L.items, () => this.renderList());
+    if (!L.cards) {
+      const s = $("#listBody").querySelector(".row.sel"); if (s) s.scrollIntoView({ block: "nearest" });
+      this.bindClicks($("#listBody"), L.items, () => this.renderList());
+    }
     // Переключение вкладок тапом
     $("#listTabs").querySelectorAll(".tab").forEach((t, i) =>
       t.addEventListener("click", () => { this.tab = i; this.sel = 0; this.renderList(); }));
@@ -3374,6 +3502,7 @@ const UI = {
           tagCls: eq ? "eq" : own ? "own" : lock ? "lock" : "",
           right: own ? "" : (it.price < 0 ? "ПОДПИСКА" : it.price + " 🪙"),
           cls: lock && !own ? "gray" : "",
+          own, eq, lock, preview: { kind: cat, id: it.id },
           act: () => {
             if (!own) { if (buy(cat, it)) { SAVE.equipped[cat] = it.id; persist(); } }
             else { SAVE.equipped[cat] = it.id; persist(); toast("НАДЕТО: " + it.name, "#5da0f0"); }
@@ -3384,8 +3513,10 @@ const UI = {
         };
       });
       return {
-        title: "SHOP / МАГАЗИН", tabs: names, items,
-        sub: `Баланс: ${coins} &nbsp; Уровень: ${SAVE.maxLevel}`
+        title: "МАГАЗИН", tabs: names, items, cards: true,
+        sub: `Баланс: <span class="gold">${coins}</span> 🪙 &nbsp; Уровень: ${SAVE.maxLevel}`,
+        hint: isTouch ? "ТАП — выбрать &nbsp; ПОВТОРНЫЙ ТАП — надеть/купить &nbsp; ВКЛАДКИ — сверху"
+          : "&larr;&rarr;&uarr;&darr; — выбор &nbsp; ENTER — надеть/купить &nbsp; TAB — вкладка &nbsp; ESC — назад"
       };
     }
     if (kind === "lb") {
@@ -3686,20 +3817,74 @@ const UI = {
     try { SAVE = deepMerge(loadSave(), JSON.parse(decodeURIComponent(escape(atob(s.trim()))))); persist(); toast("Сохранение загружено", "#70B050"); this.renderList(); }
     catch (e) { toast("Некорректный код", "#d05050"); }
   },
+  /* Выбор флага. Был текстовый prompt со списком «1. РОССИЯ, 2. США…», где надо
+     было ввести номер вслепую. Теперь плитки с цветом и названием. */
   chooseFlag() {
-    const list = FLAGS.map((f, i) => `${i + 1}. ${f.name}`).join("\n");
-    const n = prompt("Выберите флаг:\n" + list, "1");
-    const f = FLAGS[(parseInt(n) || 1) - 1];
-    if (f) { SAVE.equipped.flag = f.id; persist(); toast("Флаг: " + f.name, "#70B050"); }
+    this.modal(`<h3>ФЛАГ СТРАНЫ</h3>
+      <div id="flagBox" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:10px 0"></div>
+      <div class="btn" style="border-color:#888;color:#888" onclick="UI.closeModal()">ЗАКРЫТЬ</div>`);
+    $("#flagBox").innerHTML = FLAGS.map((f, i) => `
+      <div class="card" data-i="${i}" style="padding:4px 2px;gap:3px">
+        <span style="display:block;width:34px;height:22px;background:${f.c};border:1px solid #444"></span>
+        <span style="font-size:8px;text-align:center">${esc(f.name)}</span>
+      </div>`).join("");
+    $("#flagBox").querySelectorAll(".card").forEach(el => {
+      if (FLAGS[+el.dataset.i].id === SAVE.equipped.flag) el.classList.add("sel");
+      el.addEventListener("click", () => {
+        const f = FLAGS[+el.dataset.i];
+        SAVE.equipped.flag = f.id; SAVE.equipped.skin = "flag"; persist();
+        this.closeModal(); this.renderList();
+        toast("Флаг: " + f.name, "#70B050");
+      });
+    });
   },
+  /* Редактор своего скина 8x8. Был текстовым: prompt на 36 символов, где надо
+     было вслепую набрать строку из решёток. Теперь сетка, по которой рисуют
+     мышью или пальцем, с живым превью танка рядом. */
   customSkinEditor() {
-    // Простой редактор 6x6: строка из 36 символов (# — пиксель)
-    const cur = (SAVE.equipped.custom || SKIN_ART.star).join ? SAVE.equipped.custom.join("") : "";
-    const s = prompt("Пиксель-арт 6x6: 36 символов, '#' = пиксель, '.' = пусто", cur || "..##...####.######.####..#..#.......");
-    if (s && s.length >= 36) {
-      const rows = []; for (let i = 0; i < 6; i++) rows.push(s.slice(i * 6, i * 6 + 6));
-      SAVE.equipped.custom = rows; persist(); toast("Свой скин сохранён", "#70B050");
-    }
+    const grid = (SAVE.equipped.custom && SAVE.equipped.custom.length === 8)
+      ? SAVE.equipped.custom.map(r => r.padEnd(8, ".").slice(0, 8).split(""))
+      : SKIN_ART.star.map(r => r.split(""));
+    this.modal(`<h3>СВОЙ РИСУНОК</h3>
+      <p class="gray">Рисуйте мышью или пальцем — превью справа обновляется сразу.</p>
+      <div style="display:flex;gap:14px;align-items:center;justify-content:center;margin:8px 0">
+        <div id="skGrid" style="display:grid;grid-template-columns:repeat(8,22px);gap:1px;background:#333;padding:1px"></div>
+        <canvas id="skPrev" width="48" height="48"
+                style="image-rendering:pixelated;width:96px;height:96px;background:#000;border:1px solid #333"></canvas>
+      </div>
+      <div class="btn" onclick="UI.saveCustomSkin()">СОХРАНИТЬ</div>
+      <div class="btn" style="border-color:#888;color:#888" onclick="UI.closeModal()">ОТМЕНА</div>`);
+    this._skin = grid;
+    const box = $("#skGrid"), pv = $("#skPrev").getContext("2d");
+    pv.imageSmoothingEnabled = false;
+    let paint = 0;
+    const redraw = () => {
+      box.querySelectorAll("i").forEach((cell, i) => {
+        cell.style.background = grid[(i / 8) | 0][i % 8] === "#" ? "#f8f8f8" : "#111";
+      });
+      pv.fillStyle = "#0a0a0a"; pv.fillRect(0, 0, 48, 48);
+      drawTank(pv, 8, 8, 0, TANK_COLORS[SAVE.equipped.color] || TANK_COLORS.yellow,
+        { art: "p1", trackPhase: 0, skin: "custom", skinData: grid.map(r => r.join("")) });
+    };
+    box.innerHTML = Array.from({ length: 64 }, () =>
+      '<i style="display:block;width:22px;height:22px;cursor:crosshair"></i>').join("");
+    box.querySelectorAll("i").forEach((cell, i) => {
+      const r = (i / 8) | 0, c = i % 8;
+      const put = () => { grid[r][c] = paint === 1 ? "#" : "."; redraw(); };
+      cell.addEventListener("mousedown", e => {
+        e.preventDefault(); paint = grid[r][c] === "#" ? 2 : 1; put();
+      });
+      cell.addEventListener("mouseenter", () => { if (paint) put(); });
+      cell.addEventListener("touchstart", e => { e.preventDefault(); paint = grid[r][c] === "#" ? 2 : 1; put(); }, { passive: false });
+    });
+    window.addEventListener("mouseup", () => { paint = 0; }, { once: false });
+    redraw();
+  },
+  saveCustomSkin() {
+    SAVE.equipped.custom = this._skin.map(r => r.join(""));
+    SAVE.equipped.skin = "custom";
+    persist(); this.closeModal(); this.renderList();
+    toast("Свой рисунок сохранён", "#70B050");
   },
   mpCreate(mode) {
     if (!CFG.MP_SERVER) {
@@ -3874,8 +4059,12 @@ const UI = {
       Audio_.tone(440, 0.03, "square", 0.15);
       this.screen === "menu" ? this.buildMenu() : this.renderList();
     };
-    if (k === "ArrowDown") nav(1);
-    else if (k === "ArrowUp") nav(-1);
+    // В магазине карточки лежат сеткой: вверх/вниз — на ряд, влево/вправо — на шаг
+    const grid = this.screen === "list" && this.list && this.list.cards;
+    if (k === "ArrowDown") nav(grid ? (this.cardCols || 1) : 1);
+    else if (k === "ArrowUp") nav(grid ? -(this.cardCols || 1) : -1);
+    else if (grid && k === "ArrowLeft") nav(-1);
+    else if (grid && k === "ArrowRight") nav(1);
     else if (k === "ArrowLeft") { const it = items[this.sel]; if (it && it.left) it.left(); }
     else if (k === "ArrowRight") { const it = items[this.sel]; if (it && it.rightK) it.rightK(); }
     else if (k === "Enter" || k === "Space") {
