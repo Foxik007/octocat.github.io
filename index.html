@@ -198,6 +198,12 @@ const CFG = {
   // которые идут ломать базу по кратчайшему маршруту (остальные охотятся на
   // игрока), AI_RANDOM — доля случайных ходов у тех, кто идёт к базе.
   // Меньше первое / больше второе = у игрока больше времени на оборону.
+  /* Босс-битва: супер-танк 48x48 вместо обычной волны. Здоровье растёт с
+     каждой побеждённой волной, свита подвозится небольшими порциями. */
+  BOSS_HP: 30,            // здоровье первого босса
+  BOSS_HP_STEP: 12,       // прибавка за каждую следующую волну
+  BOSS_SIZE: 48,
+  BOSS_ESCORT: 4,         // сколько обычных танков в свите на волну
   AI_BASE_SHARE: 0.3,
   AI_RANDOM: 0.55,
   ENEMIES_PER_LEVEL: 20,
@@ -808,10 +814,12 @@ function drawArt(ctx, x, y, art, colorOf, s) {
 }
 /* Рисование танка по спрайту. dir: 0=вверх, 1=вправо, 2=вниз, 3=влево. */
 function drawTank(ctx, x, y, dir, colors, opt = {}) {
-  const s = 2, [m, l, d] = colors;
+  // Матрица всегда 16x16 «пикселей»; масштаб задаёт итоговый размер танка
+  const size = opt.size || 32, s = size / 16, [m, l, d] = colors;
   const art = TANK_ART[opt.art] || TANK_ART.p0;
+  const c = size / 2;
   ctx.save();
-  ctx.translate(x + 16, y + 16); ctx.rotate(dir * Math.PI / 2); ctx.translate(-x - 16, -y - 16);
+  ctx.translate(x + c, y + c); ctx.rotate(dir * Math.PI / 2); ctx.translate(-x - c, -y - c);
   const ph = opt.trackPhase ? 1 : 0;
   // Гусеница: полосы сдвигаются на кадр — так видно, что танк едет
   drawArt(ctx, x, y, art, (ch, r) => ch === "T" ? ((r + ph) % 2 ? l : d)
@@ -822,13 +830,13 @@ function drawTank(ctx, x, y, dir, colors, opt = {}) {
   // Щит неуязвимости — мерцающее кольцо из пикселей, а не сглаженная обводка
   if (opt.shield) {
     const f = Math.floor(now() / 70) % 2;
-    drawArt(ctx, x, y, SHIELD_ART[f], ch => ch === "W" ? "#ffffff" : "#80d8ff", 2);
+    drawArt(ctx, x, y, SHIELD_ART[f], ch => ch === "W" ? "#ffffff" : "#80d8ff", s);
   }
   // Броня (купленный апгрейд) — уголки
   if (opt.armor > 0) {
     ctx.fillStyle = "#40e0ff";
-    ctx.fillRect(x, y, 4, 2); ctx.fillRect(x + 28, y, 4, 2);
-    ctx.fillRect(x, y + 30, 4, 2); ctx.fillRect(x + 28, y + 30, 4, 2);
+    ctx.fillRect(x, y, 4, 2); ctx.fillRect(x + size - 4, y, 4, 2);
+    ctx.fillRect(x, y + size - 2, 4, 2); ctx.fillRect(x + size - 4, y + size - 2, 4, 2);
   }
 }
 // Эмблемы (скины) 6x6 в центре корпуса
@@ -1471,6 +1479,10 @@ class Bullet {
   draw(ctx, ox, oy) {
     const x = ox + this.x, y = oy + this.y;
     const S = this.style;
+    if (this.superShot) {            // ореол, чтобы усиленный снаряд был виден
+      ctx.fillStyle = (Math.floor(now() / 60) % 2) ? "#ffb060" : "#e05010";
+      ctx.fillRect(x - 2, y - 2, 12, 12);
+    }
     if (S === "laser") {           // лазер — красный луч
       ctx.fillStyle = "rgba(255,60,60,.5)";
       this.trail.forEach((t, i) => ctx.fillRect(ox + t.x + 2, oy + t.y + 2, 4, 4));
@@ -1545,9 +1557,16 @@ class Tank {
   fire() {
     if (this.bullets >= this.maxBullets) return null;
     if (!this.isPlayer && this.cooldown > 0) return null;
-    const cx = this.x + 16 + DX[this.dir] * 14 - 4, cy = this.y + 16 + DY[this.dir] * 14 - 4;
-    const b = new Bullet(this, cx, cy, this.dir, this.isPlayer ? (this.stars >= 3 ? 2 : 1) : (this.kind === "boss" ? 2 : 1),
+    // Усиленный снаряд из подобранного ящика: тратится по одному на выстрел
+    const superShot = this.isPlayer && this.superShots > 0;
+    if (superShot) this.superShots--;
+    const half = this.w / 2, reach = half - 2;
+    const cx = this.x + half + DX[this.dir] * reach - 4, cy = this.y + half + DY[this.dir] * reach - 4;
+    const b = new Bullet(this, cx, cy, this.dir,
+      this.isPlayer ? (superShot || this.stars >= 3 ? 2 : 1) : (this.kind === "boss" ? 2 : 1),
       this.isPlayer ? SAVE.equipped.shot : "normal");
+    b.damage = superShot ? 3 : 1;
+    b.superShot = superShot;
     this.bullets++; this.cooldown = this.reloadTime;
     this.g.bullets.push(b);
     if (this.isPlayer) {
@@ -1579,7 +1598,7 @@ class Tank {
     const p = Math.floor(this.spawnTimer / 4) % 4;
     const art = SPAWN_ART[[0, 1, 2, 1][p]];
     const col = p % 2 ? "#f8f8f8" : "#5da0f0";
-    drawArt(ctx, ox + this.x, oy + this.y, art, () => col, 2);
+    drawArt(ctx, ox + this.x, oy + this.y, art, () => col, this.w / 16);
     /* Купленная «вспышка на старте»: расходящееся кольцо поверх звезды.
        Товар был в магазине с самого начала, но нигде не проверялся — деньги
        списывались, а на экране ничего не менялось. */
@@ -1640,13 +1659,14 @@ class Player extends Tank {
     else if (type === "shield") { this.shield = 300; Audio_.bonus(); }   // 5 секунд неуязвимости
     else if (type === "shovel") { this.g.fortifyBase(this.baseIndex || 0); Audio_.bonus(); }
     else if (type === "coin") { addCoins(25, "бонус-монета"); }
+    else if (type === "ammo") { this.superShots = (this.superShots || 0) + 6; Audio_.bonus(); }
     SAVE.stats.bonusesTaken[type] = (SAVE.stats.bonusesTaken[type] || 0) + 1;
   }
   respawn() {
     this.x = this.startX; this.y = this.startY; this.dir = 0;
     this.dead = false; this.hp = 1; this.spawnTimer = 60; this.shield = 180;
     this.stars = Math.max(0, this.stars - 1);
-    this.armor = this.armorMax; this.bullets = 0;
+    this.armor = this.armorMax; this.bullets = 0; this.superShots = 0;
   }
 }
 
@@ -1657,7 +1677,7 @@ const ENEMY_TYPES = {
   fast: { speed: 1.75, hp: 1, score: 200, coins: 25, colors: "e_fast", fireRate: 0.007 },
   power: { speed: 1.0, hp: 1, score: 300, coins: 40, colors: "e_power", fireRate: 0.013, fastBullet: true },
   armor: { speed: 0.85, hp: 4, score: 400, coins: 60, colors: "e_armor", fireRate: 0.010 },
-  boss: { speed: 0.7, hp: 5, score: 1000, coins: 50, colors: "e_boss", fireRate: 0.021 }
+  boss: { speed: 0.62, hp: 30, score: 1000, coins: 50, colors: "e_boss", fireRate: 0.03 }
 };
 // Броневой танк в оригинале меняет цвет по мере повреждений
 /* Точки появления врагов — верхний ряд поля 13x13: клетки 0, 6 и 12 */
@@ -1675,6 +1695,16 @@ class Enemy extends Tank {
     this.reloadTime = kind === "boss" ? 26 : 40;
     this.maxBullets = kind === "boss" ? 2 : 1;
     this.frozen = 0;
+    /* Супер-танк: крупнее клетки, много здоровья, стреляет очередями и с
+       потерей здоровья звереет. Раньше «босс» отличался от рядового врага
+       только пятью хитами, поэтому режим босс-битвы был обычной кампанией. */
+    if (kind === "boss") {
+      this.w = this.h = CFG.BOSS_SIZE;
+      const wave = Math.max(1, g.wave || 1);
+      this.hp = this.maxHp = CFG.BOSS_HP + (wave - 1) * CFG.BOSS_HP_STEP;
+      this.score = 1000 * wave; this.coins = 150 * wave;
+      this.phase = 0; this.burst = 0; this.burstTimer = 0;
+    }
     /* Роль назначается при появлении и не меняется: большинство идёт ломать
        орла, остальные охотятся на игрока. Если бы все шли к базе, они
        выстраивались бы в одну колонну по кратчайшему маршруту. */
@@ -1703,12 +1733,35 @@ class Enemy extends Tank {
         this.dirTimer = 20 + rnd(40);
       }
     }
+    if (this.kind === "boss") { this.updateBoss(); return; }
     // Прицельный выстрел: если игрок или орёл прямо по курсу — стреляем сразу
     if (this.linedUp()) this.fire();
     else if (Math.random() < this.fireRate * (1 + this.g.difficulty * 0.4)) this.fire();
   }
+  /* Стрельба босса: короткие очереди и три фазы по остатку здоровья.
+     Чем меньше здоровья, тем длиннее очередь и короче пауза — под конец
+     от него приходится по-настоящему уворачиваться. */
+  updateBoss() {
+    const left = this.hp / this.maxHp;
+    const ph = left > 0.66 ? 0 : left > 0.33 ? 1 : 2;
+    if (ph !== this.phase) {
+      this.phase = ph;
+      this.speed = ENEMY_TYPES.boss.speed * (1 + this.g.difficulty * 0.15) * (1 + ph * 0.35);
+      this.maxBullets = 2 + ph;
+      this.reloadTime = 24 - ph * 6;
+      this.g.addExplosion(this.x + this.w / 2 - 16, this.y + this.h / 2 - 16, "big");
+      toast("БОСС ОЗВЕРЕЛ — ФАЗА " + (ph + 1), "#e05010");
+      Log.info("босс перешёл в фазу " + (ph + 1));
+    }
+    if (this.burstTimer > 0) { this.burstTimer--; return; }
+    if (this.burst > 0) { if (this.fire()) this.burst--; return; }
+    if (this.linedUp() || Math.random() < this.fireRate * (1 + this.phase * 0.5)) {
+      this.burst = 2 + this.phase;                 // очередь из 2-4 снарядов
+      this.burstTimer = 0;
+    } else this.burstTimer = 6;
+  }
   // Клетка 13x13, в которой сейчас центр танка
-  cell() { return [Math.floor((this.x + 16) / 32), Math.floor((this.y + 16) / 32)]; }
+  cell() { return [Math.floor((this.x + this.w / 2) / 32), Math.floor((this.y + this.h / 2) / 32)]; }
   // Впереди стена, а не танк (значит, её имеет смысл прострелить)
   wallAhead() {
     const nx = this.x + DX[this.dir] * 8, ny = this.y + DY[this.dir] * 8;
@@ -1779,15 +1832,12 @@ class Enemy extends Tank {
     if (this.kind === "armor") base = TANK_COLORS[ARMOR_COLORS[clamp(this.hp - 1, 0, 3)]];
     const c = this.bonus && Math.floor(now() / 120) % 2 ? TANK_COLORS.bonusFlash : base;
     drawTank(ctx, ox + this.x, oy + this.y, this.dir, c,
-      { art: this.kind, trackPhase: Math.floor(this.trackPhase) % 2 });
+      { art: this.kind, size: this.w, trackPhase: Math.floor(this.trackPhase) % 2 });
     if (this.kind === "armor") { // броневой: цвет по остатку HP, полоска не нужна
       return;
     }
-    if (this.kind === "boss") { // полоска HP
-      const w = 28 * (this.hp / this.maxHp);
-      ctx.fillStyle = "#400"; ctx.fillRect(ox + this.x + 2, oy + this.y - 5, 28, 3);
-      ctx.fillStyle = this.hp > this.maxHp / 2 ? "#40d040" : "#e04040";
-      ctx.fillRect(ox + this.x + 2, oy + this.y - 5, w, 3);
+    if (this.kind === "boss") {   // здоровье босса рисуется общей полосой сверху поля
+      return;
     }
   }
 }
@@ -2043,10 +2093,29 @@ const POWERUP_ART = {
     "KWKKKKKKKKKKKKWK",
     "KWWWWWWWWWWWWWWK",
     "KKKKKKKKKKKKKKKK"
+  ],
+  ammo: [
+    "KKKKKKKKKKKKKKKK",
+    "KWWWWWWWWWWWWWWK",
+    "KWKKKKKKKKKKKKWK",
+    "KWKKKKCCCCKKKKWK",
+    "KWKKKCCCCCCKKKWK",
+    "KWKKCCHHHHCCKKWK",
+    "KWKKCCHHHHCCKKWK",
+    "KWKKCCCCCCCCKKWK",
+    "KWKKCCCCCCCCKKWK",
+    "KWKKCSSCCSSCKKWK",
+    "KWKKCSSCCSSCKKWK",
+    "KWKKCCCCCCCCKKWK",
+    "KWKKKCCCCCCKKKWK",
+    "KWKKKKKKKKKKKKWK",
+    "KWWWWWWWWWWWWWWK",
+    "KKKKKKKKKKKKKKKK"
   ]
 };
 const POWERUP_COL = {
-  star: "#f0c020", shield: "#5da0f0", tank: "#70B050", shovel: "#C09848", coin: "#f0c020"
+  star: "#f0c020", shield: "#5da0f0", tank: "#70B050", shovel: "#C09848", coin: "#f0c020",
+  ammo: "#e05010"
 };
 
 /* --- Щит неуязвимости: два кадра «энергетического кольца» ---
@@ -2092,7 +2161,9 @@ const SHIELD_ART = [
 ];
 
 /* --- Бонус --- */
-const POWERUP_TYPES = ["star", "tank", "shield", "shovel", "coin"];
+/* «ammo» — ящик усиленных снарядов: следующие выстрелы бьют втрое сильнее.
+   Против босса с тремя десятками хитов без него пришлось бы долбить минутами. */
+const POWERUP_TYPES = ["star", "tank", "shield", "shovel", "coin", "ammo"];
 class PowerUp {
   constructor(x, y, type) { this.x = x; this.y = y; this.w = 32; this.h = 32; this.type = type; this.life = 900; this.dead = false; }
   update() { if (--this.life <= 0) this.dead = true; }
@@ -2305,7 +2376,8 @@ class Game {
     this.enemyQueue = this.pvp ? [] : this.buildQueue(n);
     this.enemiesLeft = this.enemyQueue.length;
     this.enemies = []; this.bullets = []; this.powerups = []; this.explosions = []; this.particles = [];
-    this.spawnPoint = 0; this.spawnTimer = 60;
+    this.ammoTimer = 240;
+    this.spawnPoint = 0; this.spawnTimer = this.mode === "boss" ? 1 : 60;
     // Первый уровень партии открывается стартовой темой оригинала (4.3 с)
     const firstStage = !this.startedOnce;
     this.startedOnce = true;
@@ -2347,7 +2419,14 @@ class Game {
       for (let i = 0; i < q.length; i++)
         if (chance(Math.min(0.5, this.wave * 0.06)) && q[i].kind === "basic") q[i].kind = pick(["fast", "power", "armor"]);
     }
-    if (n % 5 === 0 || this.mode === "boss") q.push({ kind: "boss", bonus: true });
+    if (this.mode === "boss") {
+      // Не двадцать рядовых с боссом в конце, а босс и короткая свита при нём
+      const esc = [];
+      for (let i = 0; i < CFG.BOSS_ESCORT; i++)
+        esc.push({ kind: pick(["basic", "fast", "power", "armor"]), bonus: i === 1 });
+      return [{ kind: "boss", bonus: false }].concat(esc);
+    }
+    if (n % 5 === 0) q.push({ kind: "boss", bonus: true });
     if (this.mode === "ctf") return q.slice(0, 6);
     return q;
   }
@@ -2357,10 +2436,12 @@ class Game {
      пропускался, поэтому сосед спокойно въезжал в него, а через секунду оба
      оказывались в одной точке и намертво блокировали друг друга. */
   tankAt(x, y, self) {
-    const r = { x: x + 2, y: y + 2, w: 28, h: 28 };
+    // Размер берём у самих танков: босс крупнее обычного, зашитая «28» врала
+    const sw = (self ? self.w : 32) - 4, sh = (self ? self.h : 32) - 4;
+    const r = { x: x + 2, y: y + 2, w: sw, h: sh };
     for (const t of this.allTanks()) {
       if (t === self || t.dead) continue;
-      if (hit(r, { x: t.x + 2, y: t.y + 2, w: 28, h: 28 })) return t;
+      if (hit(r, { x: t.x + 2, y: t.y + 2, w: t.w - 4, h: t.h - 4 })) return t;
     }
     return null;
   }
@@ -2524,6 +2605,17 @@ class Game {
     this.powerups.forEach(p => p.update());
     Audio_.engine(Audio_.enabled && this.state === "play", !!(me && me.moving));
     if (this.state === "intro" && this.timer > 0) this.timer--;
+    /* Конец партии у гостя приходит снимком, а gameOver() живёт в update(),
+       который гость не выполняет. Из-за этого гость навсегда оставался на
+       надписи поверх поля: ни экрана результата, ни кнопки «играть снова».
+       Доводим до конца сами — счёт и рекорды уже посчитал хост. */
+    if (this.state === "over" && !this.guestFinished) {
+      this.guestFinished = true;
+      Audio_.engine(false);
+      this.victory === undefined && (this.victory = this.pvp ? this.winner === MP.index : false);
+      Log.info("партия окончена (гость)");
+      setTimeout(() => { if (Game.cur === this) { Game.cur = null; UI.showGameOver(this); } }, 3000);
+    }
   }
   /* --- Главный апдейт --- */
   update() {
@@ -2558,6 +2650,14 @@ class Game {
       }
     }
     this.unstickTanks();
+    /* Босс-битва: ящик усиленных снарядов подвозится сам, иначе тридцать
+       хитов пришлось бы выбивать обычными выстрелами по одному. */
+    if (this.mode === "boss" && this.state === "play") {
+      if (--this.ammoTimer <= 0) {
+        this.ammoTimer = 600;                       // раз в 10 секунд
+        if (this.powerups.filter(p => p.type === "ammo").length < 2) this.dropPowerUp("ammo");
+      }
+    }
     // Прочее
     this.explosions.forEach(e => e.update());
     this.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; });
@@ -2616,9 +2716,9 @@ class Game {
         // В кооперативе игроки не могут убить друг друга; в PvP и CTF — могут
         if (t.isPlayer === b.owner.isPlayer && this.mode !== "ctf" && !this.pvp) continue;
         if (t.isPlayer === b.owner.isPlayer && t === b.owner) continue;
-        if (!hit(b, { x: t.x + 2, y: t.y + 2, w: 28, h: 28 })) continue;
+        if (!hit(b, { x: t.x + 2, y: t.y + 2, w: t.w - 4, h: t.h - 4 })) continue;
         b.dead = true; b.owner.bullets--;
-        const killed = t.takeDamage(1, b.owner);
+        const killed = t.takeDamage(b.damage || 1, b.owner);
         if (b.style === "firework") this.fireworkBurst(b.x, b.y);
         if (killed) {
           if (t.isPlayer) this.playerKilled(t);
@@ -2659,8 +2759,8 @@ class Game {
     if (this.mode === "survival" && chance(0.25)) this.dropPowerUp();
     this.enemiesLeft--;
   }
-  dropPowerUp() {
-    const type = pick(POWERUP_TYPES);
+  dropPowerUp(force) {
+    const type = force || pick(POWERUP_TYPES);
     /* Кладём бонус только туда, куда танк реально доедет. Раньше клетка бралась
        случайно, без проверки, и бонус регулярно ложился в воду, сталь или кусты
        за водой — до него было не добраться, и он молча истекал. */
@@ -2697,7 +2797,20 @@ class Game {
     }
     if (x < 0) { this.spawnTimer = 30; return; }   // все три входа заняты — ждём
     const spec = this.enemyQueue.shift();
-    this.enemies.push(new Enemy(this, x, 0, spec.kind, spec.bonus));
+    // Босс шире клетки — выпускаем его по центру верхнего ряда
+    const bx = spec.kind === "boss" ? (CFG.FIELD - CFG.BOSS_SIZE) / 2 : x;
+    const e = new Enemy(this, bx, 0, spec.kind, spec.bonus);
+    this.enemies.push(e);
+    if (spec.kind === "boss") {
+      // Расчищаем место под корпус 48x48: точки появления в карте рассчитаны
+      // на обычный танк, и босс упирался бы в кладку соседней клетки
+      const U = CFG.UNIT;
+      for (let uy = 0; uy < CFG.BOSS_SIZE / U; uy++)
+        for (let ux = Math.floor(bx / U); ux < Math.ceil((bx + CFG.BOSS_SIZE) / U); ux++)
+          if (this.field.at(ux, uy) !== T.BASE) this.field.set(ux, uy, T.EMPTY);
+      toast("СУПЕР-ТАНК! ВОЛНА " + this.wave, "#e05010");
+      Log.info("босс появился: здоровье " + e.maxHp + ", волна " + this.wave);
+    }
   }
   /* --- Режим «Захват флага» --- */
   updateCTF() {
@@ -2796,6 +2909,7 @@ class Game {
     this.field.drawFront(ctx, ox, oy);   // кусты поверх
     this.particles.forEach(p => { ctx.fillStyle = p.c; ctx.fillRect(ox + p.x, oy + p.y, p.s, p.s); });
     this.explosions.forEach(e => e.draw(ctx, ox, oy));
+    this.drawBossBar(ctx);
     this.drawHUD(ctx);
     if (this.state === "pause") {
       ctx.fillStyle = "rgba(0,0,0,.6)"; ctx.fillRect(ox, oy, CFG.FIELD, CFG.FIELD);
@@ -2811,11 +2925,30 @@ class Game {
       textC(ctx, "SCORE " + this.score, ox + 208, y + 46, 2, "#f0c020");
     }
   }
+  /* Полоса здоровья босса — во всю ширину поля, с делениями по фазам.
+     Прежняя чёрточка в 28 px над танком не читалась вообще. */
+  drawBossBar(ctx) {
+    const b = this.enemies.find(e => e.kind === "boss" && !e.dead && e.spawnTimer <= 0);
+    if (!b) return;
+    const ox = CFG.OX, oy = CFG.OY, W = CFG.FIELD - 24, x = ox + 12, y = oy + 6;
+    const k = Math.max(0, b.hp / b.maxHp);
+    ctx.fillStyle = "rgba(0,0,0,.65)"; ctx.fillRect(x - 3, y - 3, W + 6, 16);
+    ctx.fillStyle = "#3a1008"; ctx.fillRect(x, y, W, 10);
+    ctx.fillStyle = k > 0.66 ? "#40d040" : k > 0.33 ? "#f0c020" : "#e04040";
+    ctx.fillRect(x, y, W * k, 10);
+    ctx.strokeStyle = "#f8f8f8"; ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, W - 1, 9);
+    for (const t of [0.33, 0.66]) {                  // границы фаз
+      ctx.fillStyle = "rgba(0,0,0,.7)"; ctx.fillRect(x + W * t, y, 1, 10);
+    }
+    text(ctx, "BOSS " + b.hp + "/" + b.maxHp, x, y + 12, 1, "#f8f8f8");
+  }
   drawIntro(ctx) {
     const ox = CFG.OX, oy = CFG.OY;
     ctx.fillStyle = "#8c8c8c"; ctx.fillRect(ox, oy, CFG.FIELD, CFG.FIELD);
     const name = this.mode === "endless" ? "ENDLESS WAVE " + this.wave :
       this.mode === "survival" ? "SURVIVAL WAVE " + this.wave :
+      this.mode === "boss" ? "BOSS WAVE " + this.wave :
         this.mode === "pvp" ? "PLAYER VS PLAYER" :
         this.mode === "ctf" ? "CAPTURE THE FLAG" :
           this.mode === "custom" ? "CUSTOM LEVEL" : "STAGE " + this.levelIndex;
@@ -3149,8 +3282,15 @@ const MP = {
         if (this.isHost() && this.players.length >= 2 && !this.inGame) this.startMatch();
         break;
       case "begin":
+        /* Роль берём свою, а не «раз пришло — значит я гость». Благодаря этому
+           перезапуск объявляет любая сторона одним и тем же сообщением, и
+           отдельный тип для просьбы гостя не нужен. */
         this.inGame = true; this.mode = m.mode;
-        UI.startGame({ mode: m.mode === "pvp" ? "pvp" : "2p", level: m.level, net: { role: "guest" } });
+        UI.closeModal();             // у гостя тоже: заходим сразу, без подтверждений
+        UI.startGame({
+          mode: m.mode === "pvp" ? "pvp" : "2p", level: m.level,
+          net: { role: this.isHost() ? "host" : "guest" }
+        });
         break;
       case "in":                                   // ввод гостя (принимает хост)
         this.applyInputMask(m.k);
@@ -3162,9 +3302,6 @@ const MP = {
       case "chat":
         this.pushChat(m.from, m.msg, false); toast(m.from + ": " + m.msg, "#5da0f0");
         if (UI.screen === "list" && UI.listKind === "chat") UI.renderList();
-        break;
-      case "rematch":                              // гость просит перезапуск — решает хост
-        if (this.isHost()) { toast("Соперник хочет сыграть ещё раз", "#70B050"); this.restartMatch(m.level); }
         break;
       case "ping": this.send({ t: "pong", ts: m.ts }); break;
       case "pong": this.ping = Math.max(0, now() - m.ts); break;
@@ -3184,26 +3321,28 @@ const MP = {
   /* Перезапуск партии сразу у обоих. Раньше «ИГРАТЬ СНОВА» перезапускало
      только у того, кто нажал: второй оставался на экране конца партии, и
      комната расходилась. Хост объявляет старт тем же сообщением begin, что
-     и при первом запуске; гость просит хоста через rematch. */
+     и при первом запуске, а получатель начинает в своей роли — поэтому объявить
+     перезапуск может любая из сторон, отдельного сообщения не нужно. */
   restartMatch(level) {
     // Соперника в комнате нет — синхронизировать нечего, пусть перезапустится локально
-    if (!this.connected || !this.room || this.players.length < 2) return false;
-    if (!this.isHost()) {
-      this.send({ t: "rematch", level });
-      toast("Просим хоста перезапустить партию…", "#5da0f0");
-      Log.info("рестарт: запрос отправлен хосту");
-      return true;
+    if (!this.connected || !this.room || this.players.length < 2) {
+      Log.warn("рестарт локальный: соперника в комнате нет");
+      return false;
     }
     const lv = level || 1;
     this.inGame = true;
-    this.send({ t: "begin", mode: this.mode, level: lv });
+    this.send({ t: "begin", mode: this.mode, level: lv });   // получатель начнёт в своей роли
     Log.info("рестарт партии у обоих игроков, уровень " + lv);
-    UI.startGame({ mode: this.mode === "pvp" ? "pvp" : "2p", level: lv, net: { role: "host" } });
+    UI.startGame({
+      mode: this.mode === "pvp" ? "pvp" : "2p", level: lv,
+      net: { role: this.isHost() ? "host" : "guest" }
+    });
     return true;
   },
   startMatch() {
     const level = 1;
     this.inGame = true;
+    UI.closeModal();                 // окно с кодом комнаты больше не нужно
     this.send({ t: "begin", mode: this.mode, level });
     UI.startGame({ mode: this.mode === "pvp" ? "pvp" : "2p", level, net: { role: "host" } });
   },
@@ -3371,6 +3510,19 @@ window.addEventListener("unhandledrejection", e => Log.error("promise: " + (e.re
    Показывается игроку в пункте меню «ЧТО НОВОГО». Новую ревизию добавляем
    сверху: { v, d, items[] }. */
 const CHANGELOG = [
+  {
+    v: "1.7", d: "босс-битва и сеть",
+    items: [
+      "Босс-битва стала отдельным режимом: супер-танк 48x48 с полосой здоровья во всю ширину поля и короткой свитой вместо волны из 20 танков.",
+      "У босса три фазы: теряя здоровье, он ускоряется, держит в воздухе больше снарядов и стреляет очередями.",
+      "Новый бонус — ящик усиленных снарядов: 6 выстрелов, каждый бьёт втрое сильнее и прошивает сталь.",
+      "В сетевой партии перезапуск происходит сразу у обоих, объявить его может любая сторона.",
+      "Гость больше не залипает на надписи о конце партии — у него появляется обычный экран результата с кнопкой.",
+      "Окно с кодом комнаты закрывается само: как только вошёл второй игрок, оба сразу в бою.",
+      "В дуэли и «Захвате флага» встречные снаряды игроков сбивают друг друга — раньше пролетали насквозь.",
+      "Пинг с экрана убран."
+    ]
+  },
   {
     v: "1.6", d: "магазин и внешний вид",
     items: [
@@ -4097,8 +4249,9 @@ const UI = {
         <p>Код комнаты: <span class="gold" style="font-size:22px">${c}</span></p>
         <p class="gray">Режим: ${mode === "pvp" ? "PvP — две базы, играем друг против друга"
           : "Кооператив — вдвоём защищаем одну базу"}</p>
-        <p>Передайте код второму игроку. Партия начнётся автоматически, как только он войдёт.</p>
-        <div class="btn" onclick="UI.closeModal()">ЖДЁМ ИГРОКА</div>`);
+        <p>Передайте код второму игроку — партия начнётся сама, как только он войдёт.</p>
+        <p class="gray" id="mpWait">Ждём второго игрока…</p>
+        <div class="btn" style="border-color:#888;color:#888" onclick="MP.leave();UI.closeModal()">ОТМЕНА</div>`);
     });
     return code;
   },
