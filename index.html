@@ -567,33 +567,169 @@ const TANK_COLORS = {
   orange: [PAL.orange, PAL.orangeL, "#803808"], white: [PAL.white, "#ffffff", PAL.whiteD],
   gold: [PAL.gold, PAL.goldL, PAL.goldD],
   // Цвета врагов
-  e_basic: [PAL.yellow, PAL.yellowL, PAL.yellowD], e_fast: [PAL.silver, PAL.silverL, PAL.silverD],
-  e_power: [PAL.gold, PAL.goldL, PAL.goldD], e_boss: ["#D02020", "#ff7070", "#701010"],
+  // Обычный враг был жёлтым — тем же цветом, что и танк игрока по умолчанию,
+  // и в бою свой танк путался с чужим. На Денди враги серые, игрок жёлтый.
+  e_basic: [PAL.silver, PAL.silverL, PAL.silverD], e_fast: ["#D8D8D8", "#ffffff", "#787878"],
+  // Мощный был золотым — почти как жёлтый танк игрока; развели по оттенку
+  e_power: [PAL.orange, PAL.orangeL, "#803808"], e_boss: ["#D02020", "#ff7070", "#701010"],
   // Броневой танк: цвет меняется по мере повреждений (как в оригинале)
   e_armor: [PAL.green, PAL.greenL, PAL.greenD], e_armor_1: ["#B8B8B8", "#f0f0f0", "#707070"],
   e_armor_2: ["#E07020", "#ffb060", "#803808"], e_armor_3: ["#F0C020", "#fff090", "#a07800"],
   bonusFlash: [PAL.red, PAL.redL, PAL.redD]
 };
 
-/* --- Рисование танка процедурно (сетка 16x16 «пикселей», масштаб 2 => 32px) --- */
+/* --- Спрайты танков ---------------------------------------------------------
+   Каждый тип танка — своя матрица 16x16 «пикселей» NES, масштаб 2 => 32 px.
+   Раньше все танки рисовались одной процедурной фигурой и отличались только
+   цветом: враги были неразличимы, а на Денди у каждого типа свой силуэт.
+   Символы: T гусеница (полосы бегут при движении), M корпус, L светлая деталь,
+   D тень, W блик, «.» прозрачно. Спрайт нарисован «вверх», остальные три
+   стороны — поворот холста, как и должно быть у танка сверху.            */
+const TANK_ART = {
+  // Игрок: квадратный корпус во всю клетку, маска башни, короткий ствол
+  player: [
+    ".......LL.......",
+    "TTT....LL....TTT",
+    "TTT....LL....TTT",
+    "TTT...MLLM...TTT",
+    "TTT..WMLLMD..TTT",
+    "TTTWMMMLLMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMLLLLMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTDDDDDDDDDDTTT",
+    "................"
+  ],
+  // Обычный враг: тот же корпус, башня посажена ниже, люк по центру
+  basic: [
+    ".......LL.......",
+    ".......LL.......",
+    "TTT....LL....TTT",
+    "TTT....LL....TTT",
+    "TTT...MLLM...TTT",
+    "TTTWMMMLLMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMLLLLMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTDDDDDDDDDDTTT",
+    "................"
+  ],
+  // Быстрый: длинный ствол и вырезы в корпусе спереди и сзади
+  fast: [
+    ".......LL.......",
+    ".......LL.......",
+    ".......LL.......",
+    "TTT....LL....TTT",
+    "TTT...MLLM...TTT",
+    "TTT.WMMLLMMD.TTT",
+    "TTT.WMMMMMMD.TTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTT.WMMMMMMD.TTT",
+    "TTT.WMMMMMMD.TTT",
+    "TTT.DDDDDDDD.TTT",
+    "................"
+  ],
+  // Мощный: лобовая плита во всю ширину корпуса
+  power: [
+    ".......LL.......",
+    ".......LL.......",
+    "TTT....LL....TTT",
+    "TTT....LL....TTT",
+    "TTTWLLLLLLLLDTTT",
+    "TTTWLLLLLLLLDTTT",
+    "TTTWMMWWWWMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTDDDDDDDDDDTTT",
+    "................"
+  ],
+  // Броневой: накладные плиты слоями, самый «тяжёлый» силуэт
+  armor: [
+    ".......LL.......",
+    ".......LL.......",
+    "TTT....LL....TTT",
+    "TTT..LLLLLL..TTT",
+    "TTT..WLLLLD..TTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMLLLLLLMDTTT",
+    "TTTWMLDDDDLMDTTT",
+    "TTTWMLDDDDLMDTTT",
+    "TTTWMLLLLLLMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMLLLLLLMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTDDDDDDDDDDTTT",
+    "................"
+  ],
+  // Босс: два ствола и башня-короб
+  boss: [
+    "....LL....LL....",
+    "....LL....LL....",
+    "TTT.LL....LL.TTT",
+    "TTT.LLLLLLLL.TTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMWWWWWWMDTTT",
+    "TTTWMWDDDDWMDTTT",
+    "TTTWMWDDDDWMDTTT",
+    "TTTWMWWWWWWMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTDDDDDDDDDDTTT",
+    "................"
+  ]
+};
+/* Рисование танка по спрайту. dir: 0=вверх, 1=вправо, 2=вниз, 3=влево. */
 function drawTank(ctx, x, y, dir, colors, opt = {}) {
   const s = 2, [m, l, d] = colors;
-  const px = (a, b, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x + a * s, y + b * s, w * s, h * s); };
+  const art = TANK_ART[opt.art] || TANK_ART.player;
   ctx.save();
-  // Поворот вокруг центра (dir: 0=вверх,1=вправо,2=вниз,3=влево)
   ctx.translate(x + 16, y + 16); ctx.rotate(dir * Math.PI / 2); ctx.translate(-x - 16, -y - 16);
   const ph = opt.trackPhase ? 1 : 0;
-  // Гусеницы
-  px(0, 2, 3, 12, d); px(13, 2, 3, 12, d);
-  for (let i = 0; i < 6; i++) { px(0, 2 + i * 2 + ph, 3, 1, l); px(13, 2 + i * 2 + ph, 3, 1, l); }
-  // Корпус
-  px(3, 3, 10, 10, m); px(3, 3, 1, 10, l); px(12, 3, 1, 10, d); px(3, 12, 10, 1, d);
+  for (let r = 0; r < 16; r++) {
+    const row = art[r];
+    let c = 0;
+    while (c < 16) {
+      const ch = row[c];
+      if (ch === ".") { c++; continue; }
+      let n = 1;
+      while (c + n < 16 && row[c + n] === ch) n++;     // склеиваем горизонтальные полосы
+      // Гусеница: полосы сдвигаются на кадр — так видно, что танк едет
+      const col = ch === "T" ? ((r + ph) % 2 ? l : d)
+        : ch === "M" ? m : ch === "L" ? l : ch === "D" ? d : "#f8f8f8";
+      ctx.fillStyle = col;
+      ctx.fillRect(x + c * s, y + r * s, n * s, s);
+      c += n;
+    }
+  }
   // Эмблема-скин на корпусе
   if (opt.skin && opt.skin !== "classic") drawSkin(ctx, x, y, opt.skin, s, opt.skinData);
-  // Башня и ствол
-  px(6, 5, 4, 4, l); px(6, 5, 4, 1, "#f8f8f8"); px(7, 0, 2, 6, l); px(7, 0, 2, 1, "#f8f8f8");
   // Полоски «звёзд» (уровень прокачки) на корпусе
-  if (opt.stars) for (let i = 0; i < opt.stars; i++) px(4 + i * 3, 10, 2, 1, "#fff");
+  if (opt.stars) for (let i = 0; i < opt.stars; i++) {
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(x + (4 + i * 3) * s, y + 12 * s, 2 * s, s);
+  }
   ctx.restore();
   // Щит неуязвимости (мерцающая рамка)
   if (opt.shield) {
@@ -646,7 +782,7 @@ const DEFAULT_SAVE = {
   challenges: { date: "", done: [] },
   customLevels: [],            // уровни из редактора
   progress: null,              // сохранённая игра
-  settings: { sound: true, weather: true, voice: false, showFPS: false, origSfx: true },
+  settings: { sound: true, voice: false, origSfx: true },
   cloud: { id: "", token: "", rev: 0 }   // учётная запись в вашей базе
 };
 let SAVE = loadSave();
@@ -734,7 +870,7 @@ const SHOP = {
     { id: "armor2", name: "БРОНЯ: 2 ПОПАДАНИЯ", price: 1500, grp: "armor", lv: 2, need: "armor1" },
     { id: "range1", name: "СКОРОСТЬ СНАРЯДА +15%", price: 600, grp: "range", lv: 1 },
     { id: "range2", name: "СКОРОСТЬ СНАРЯДА +30%", price: 1200, grp: "range", lv: 2, need: "range1" },
-    { id: "reload1", name: "ПЕРЕЗАРЯДКА +20%", price: 800, grp: "reload", lv: 1 }
+    { id: "reload1", name: "ЕЩЁ ОДИН СНАРЯД В ВОЗДУХЕ", price: 800, grp: "reload", lv: 1 }
   ],
   effect: [
     { id: "trail", name: "СЛЕД ОТ ТАНКА (ДЫМ/ОГНИ)", price: 400 },
@@ -1316,8 +1452,13 @@ class Tank {
   updateSlide() {
     if (this.slide > 0 && !this.moving) { this.slide--; this.tryMove(this.dir, this.speed * 0.7); }
   }
+  /* Выстрел. У игрока нет таймера перезарядки — как в оригинале, следующий
+     снаряд можно послать сразу, как только предыдущий во что-нибудь попал.
+     Ограничение одно: сколько своих снарядов одновременно в воздухе.
+     У врагов таймер остаётся — иначе они превращаются в пулемёты. */
   fire() {
-    if (this.cooldown > 0 || this.bullets >= this.maxBullets) return null;
+    if (this.bullets >= this.maxBullets) return null;
+    if (!this.isPlayer && this.cooldown > 0) return null;
     const cx = this.x + 16 + DX[this.dir] * 14 - 4, cy = this.y + 16 + DY[this.dir] * 14 - 4;
     const b = new Bullet(this, cx, cy, this.dir, this.isPlayer ? (this.stars >= 3 ? 2 : 1) : (this.kind === "boss" ? 2 : 1),
       this.isPlayer ? SAVE.equipped.shot : "normal");
@@ -1341,6 +1482,7 @@ class Tank {
   draw(ctx, ox, oy) {
     if (this.spawnTimer > 0) { this.drawSpawn(ctx, ox, oy); return; }
     drawTank(ctx, ox + this.x, oy + this.y, this.dir, this.colors, {
+      art: this.isPlayer ? "player" : this.kind,
       trackPhase: Math.floor(this.trackPhase) % 2, stars: this.isPlayer ? this.stars : 0,
       shield: this.shield > 0, armor: this.armor, skin: this.isPlayer ? SAVE.equipped.skin : null,
       skinData: this.isPlayer ? this.skinData : null
@@ -1378,7 +1520,7 @@ class Player extends Tank {
     this.baseSpeed = 1.05 * (1 + (u.speed || 0) * 0.10);
     this.speed = this.baseSpeed;
     this.armorMax = (u.armor || 0); this.armor = this.armorMax;
-    this.reloadTime = Math.round(14 * (1 - (u.reload || 0) * 0.20));
+    this.extraBullets = (u.reload || 0);        // купленные «лишние» снаряды в воздухе
   }
   update(input) {
     if (this.spawnTimer > 0) { this.spawnTimer--; return; }
@@ -1393,7 +1535,7 @@ class Player extends Tank {
     if (i.fire) this.fire();
     // Скорость зависит от «звёзд» прокачки
     this.speed = this.baseSpeed * (1 + this.stars * 0.12);
-    this.maxBullets = this.stars >= 2 ? 2 : 1;
+    this.maxBullets = (this.stars >= 2 ? 2 : 1) + (this.extraBullets || 0);
     // След от танка (купленный эффект)
     if (this.moving && SAVE.owned.effect.includes("trail") && chance(0.4))
       this.g.particles.push({ x: this.x + 8 + rnd(16), y: this.y + 8 + rnd(16), vx: 0, vy: 0, life: 20, c: "#808080", s: 3 });
@@ -1488,7 +1630,8 @@ class Enemy extends Tank {
     let base = this.colors;
     if (this.kind === "armor") base = TANK_COLORS[ARMOR_COLORS[clamp(this.hp - 1, 0, 3)]];
     const c = this.bonus && Math.floor(now() / 120) % 2 ? TANK_COLORS.bonusFlash : base;
-    drawTank(ctx, ox + this.x, oy + this.y, this.dir, c, { trackPhase: Math.floor(this.trackPhase) % 2 });
+    drawTank(ctx, ox + this.x, oy + this.y, this.dir, c,
+      { art: this.kind, trackPhase: Math.floor(this.trackPhase) % 2 });
     if (this.kind === "armor") { // броневой: цвет по остатку HP, полоска не нужна
       return;
     }
@@ -1676,70 +1819,6 @@ const Voice = {
   }
 };
 
-/* ============================== 12. ПОГОДА И ВРЕМЯ СУТОК ============================== */
-// «night» из набора убрана: затемнение всего поля с фонариком вокруг танка
-// перекрывало карту и мешало играть. Класс Weather ночь по-прежнему умеет
-// рисовать — она просто больше не выпадает случайно.
-const WEATHER = ["none", "none", "fog", "rain"];
-class Weather {
-  constructor(kind) {
-    this.kind = kind; this.drops = [];
-    if (kind === "rain") for (let i = 0; i < 90; i++)
-      this.drops.push({ x: rnd(CFG.FIELD), y: rnd(CFG.FIELD), s: 4 + rnd(5) });
-    this.fogPhase = 0;
-  }
-  update() {
-    if (this.kind === "rain") for (const d of this.drops) {
-      d.y += d.s; d.x += 1; if (d.y > CFG.FIELD) { d.y = -8; d.x = rnd(CFG.FIELD); }
-    }
-    this.fogPhase += 0.3;
-  }
-  draw(ctx, ox, oy, players) {
-    if (this.kind === "none") return;
-    ctx.save(); ctx.beginPath(); ctx.rect(ox, oy, CFG.FIELD, CFG.FIELD); ctx.clip();
-    if (this.kind === "rain") {
-      ctx.strokeStyle = "rgba(150,190,255,.45)"; ctx.lineWidth = 1; ctx.beginPath();
-      for (const d of this.drops) { ctx.moveTo(ox + d.x, oy + d.y); ctx.lineTo(ox + d.x - 2, oy + d.y + 7); }
-      ctx.stroke();
-      ctx.fillStyle = "rgba(20,30,60,.25)"; ctx.fillRect(ox, oy, CFG.FIELD, CFG.FIELD);
-    } else if (this.kind === "fog") {
-      ctx.fillStyle = "rgba(190,190,200,.30)"; ctx.fillRect(ox, oy, CFG.FIELD, CFG.FIELD);
-      ctx.fillStyle = "rgba(220,220,230,.18)";
-      for (let i = 0; i < 6; i++) {
-        const y = (i * 70 + this.fogPhase) % (CFG.FIELD + 60) - 30;
-        ctx.fillRect(ox, oy + y, CFG.FIELD, 26);
-      }
-    } else if (this.kind === "night") {
-      // Ночь: затемнение с «фонариками» вокруг игроков.
-      // ВАЖНО: слой темноты собирается в отдельном холсте С АЛЬФОЙ. На основном холсте
-      // (он создан с alpha:false) destination-out даёт чёрный цвет, а не прозрачность,
-      // из-за чего вместо фонарика получалось чёрное пятно, скрывавшее танк.
-      if (!this.dark) {
-        this.dark = document.createElement("canvas");
-        this.dark.width = CFG.FIELD; this.dark.height = CFG.FIELD;
-        this.dctx = this.dark.getContext("2d");
-      }
-      const d = this.dctx;
-      d.globalCompositeOperation = "source-over";
-      d.clearRect(0, 0, CFG.FIELD, CFG.FIELD);
-      d.fillStyle = "rgba(0,0,20,.78)"; d.fillRect(0, 0, CFG.FIELD, CFG.FIELD);
-      d.globalCompositeOperation = "destination-out";
-      for (const p of players) {
-        if (!p || p.dead || p.lives < 0) continue;
-        const cx = p.x + 16, cy = p.y + 16;
-        const gr = d.createRadialGradient(cx, cy, 10, cx, cy, 96);
-        gr.addColorStop(0, "rgba(0,0,0,1)"); gr.addColorStop(0.55, "rgba(0,0,0,0.85)");
-        gr.addColorStop(1, "rgba(0,0,0,0)");
-        d.fillStyle = gr; d.fillRect(cx - 96, cy - 96, 192, 192);
-      }
-      d.globalCompositeOperation = "source-over";
-      ctx.drawImage(this.dark, ox, oy);
-    }
-    ctx.restore();
-  }
-  label() { return { none: "", fog: "FOG", rain: "RAIN", night: "NIGHT" }[this.kind]; }  // латиница: в пиксельном шрифте нет кириллицы
-}
-
 /* ============================== 13. ЯДРО ИГРЫ ============================== */
 class Game {
   static cur = null;
@@ -1773,7 +1852,6 @@ class Game {
     this.field.recording = !!(this.net && this.net.role === "host");
     this.field.load(rows, { twoBases: this.pvp });
     this.difficulty = Math.min(2, (n - 1) / 20 + (this.wave - 1) * 0.2);
-    this.weather = new Weather(SAVE.settings.weather ? pick(WEATHER) : "none");
     // Игроки
     const keepLives = this.players.map(p => p.lives), keepScore = this.players.map(p => p.score);
     this.players = [new Player(this, 0, 128, 384)];
@@ -1950,7 +2028,6 @@ class Game {
     this.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; });
     this.particles = this.particles.filter(p => p.life > 0);
     this.powerups.forEach(p => p.update());
-    this.weather.update();
     Audio_.engine(Audio_.enabled && this.state === "play", !!(me && me.moving));
     if (this.state === "intro" && this.timer > 0) this.timer--;
   }
@@ -1990,7 +2067,6 @@ class Game {
     // Прочее
     this.explosions.forEach(e => e.update());
     this.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; });
-    this.weather.update();
     if (this.shovelTimer > 0 && --this.shovelTimer === 0) {
       const bi = this.shovelBase || 0;
       if (this.field.bases[bi] && !this.field.bases[bi].dead) this.field.fortify(T.BRICK, bi);
@@ -2210,7 +2286,6 @@ class Game {
     this.field.drawFront(ctx, ox, oy);   // кусты поверх
     this.particles.forEach(p => { ctx.fillStyle = p.c; ctx.fillRect(ox + p.x, oy + p.y, p.s, p.s); });
     this.explosions.forEach(e => e.draw(ctx, ox, oy));
-    this.weather.draw(ctx, ox, oy, this.players);
     this.drawHUD(ctx);
     if (this.state === "pause") {
       ctx.fillStyle = "rgba(0,0,0,.6)"; ctx.fillRect(ox, oy, CFG.FIELD, CFG.FIELD);
@@ -2235,8 +2310,6 @@ class Game {
         this.mode === "ctf" ? "CAPTURE THE FLAG" :
           this.mode === "custom" ? "CUSTOM LEVEL" : "STAGE " + this.levelIndex;
     textC(ctx, name, ox + 208, oy + 196, 3, "#000");
-    const w = this.weather.label();
-    if (w) textC(ctx, w, ox + 208, oy + 236, 2, "#303030");
   }
   drawLevelClear(ctx) {
     const ox = CFG.OX, oy = CFG.OY;
@@ -2291,7 +2364,6 @@ class Game {
       text(ctx, this.net.role === "host" ? "HOST" : "GUEST", x, CFG.CH - 40, 1, "#000");
       text(ctx, "PING " + (MP.ping | 0), x, CFG.CH - 28, 1, MP.ping > 150 ? "#d05050" : "#000");
     }
-    if (SAVE.settings.showFPS) text(ctx, "FPS " + Loop.fps, x, CFG.CH - 14, 1, "#000");
   }
   /* Портретная панель: узкая полоса под полем — на телефоне так поле шире
      на треть, чем с боковой панелью. */
@@ -2332,7 +2404,6 @@ class Game {
       text(ctx, (this.net.role === "host" ? "HOST " : "GUEST ") + (MP.ping | 0) + "MS",
         CFG.CW - 100, top + 40, 1, MP.ping > 150 ? "#d05050" : "#000");
     }
-    if (SAVE.settings.showFPS) text(ctx, "FPS " + Loop.fps, CFG.CW - 46, top + 54, 1, "#000");
   }
 }
 
@@ -3194,9 +3265,7 @@ const UI = {
           label: "ИСТОЧНИК ЗВУКА", right: st.origSfx !== false ? "ЗАПИСИ ОРИГИНАЛА" : "СИНТЕЗ APU",
           act: () => { st.origSfx = st.origSfx === false; persist(); Audio_.shoot(); this.renderList(); }
         },
-        { label: "ПОГОДА И ВРЕМЯ СУТОК", right: st.weather ? "ВКЛ" : "ВЫКЛ", act: () => { st.weather = !st.weather; persist(); this.renderList(); } },
         { label: "ГОЛОСОВОЕ УПРАВЛЕНИЕ", right: Voice.on ? "ВКЛ" : "ВЫКЛ", act: () => { Voice.toggle(); this.renderList(); } },
-        { label: "ПОКАЗЫВАТЬ FPS", right: st.showFPS ? "ВКЛ" : "ВЫКЛ", act: () => { st.showFPS = !st.showFPS; persist(); this.renderList(); } },
         { label: "ИМЯ ИГРОКА: " + SAVE.name, act: () => this.renameProfile() },
         { label: "АВАТАР: #" + (SAVE.avatar + 1) + " (из 8)", act: () => { SAVE.avatar = (SAVE.avatar + 1) % 8; persist(); this.renderList(); } },
         { hdr: "УПРАВЛЕНИЕ" },
@@ -3497,7 +3566,7 @@ const UI = {
 
 /* ============================== 19. ГЛАВНЫЙ ЦИКЛ (60 FPS) ============================== */
 const Loop = {
-  ctx: null, last: 0, acc: 0, step: 1000 / CFG.FPS, fps: 60, frames: 0, fpsTime: 0,
+  ctx: null, last: 0, acc: 0, step: 1000 / CFG.FPS,
   start() {
     this.ctx = $("#game").getContext("2d", { alpha: false });
     this.ctx.imageSmoothingEnabled = false;
@@ -3514,9 +3583,6 @@ const Loop = {
       if (Game.cur) Game.cur.update();
       this.acc -= this.step; steps++;
     }
-    // Счётчик FPS
-    this.frames++; this.fpsTime += dt;
-    if (this.fpsTime >= 1000) { this.fps = this.frames; this.frames = 0; this.fpsTime = 0; }
     // Отрисовка
     const ctx = this.ctx;
     if (Game.cur) Game.cur.draw(ctx);
