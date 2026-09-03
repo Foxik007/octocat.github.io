@@ -3696,19 +3696,10 @@ const UI = {
       const st = SAVE.settings;
       const items = [
         { label: "ЗВУК", right: st.sound ? "ВКЛ" : "ВЫКЛ", act: () => { st.sound = Audio_.toggle(); persist(); this.renderList(); } },
-        {
-          label: "ИСТОЧНИК ЗВУКА", right: st.origSfx !== false ? "ЗАПИСИ ОРИГИНАЛА" : "СИНТЕЗ APU",
-          act: () => { st.origSfx = st.origSfx === false; persist(); Audio_.shoot(); this.renderList(); }
-        },
         { label: "ГОЛОСОВОЕ УПРАВЛЕНИЕ", right: Voice.on ? "ВКЛ" : "ВЫКЛ", act: () => { Voice.toggle(); this.renderList(); } },
         { label: "ИМЯ ИГРОКА: " + SAVE.name, act: () => this.renameProfile() },
         { label: "АВАТАР: #" + (SAVE.avatar + 1) + " (из 8)", act: () => { SAVE.avatar = (SAVE.avatar + 1) % 8; persist(); this.renderList(); } },
-        { hdr: "УПРАВЛЕНИЕ" },
-        { label: "ИГРОК 1: СТРЕЛКИ + ПРОБЕЛ", cls: "gray" },
-        { label: "ИГРОК 2: WASD + ENTER", cls: "gray" },
-        { label: "ПАУЗА: P ИЛИ ESC", cls: "gray" },
-        { label: "ГЕЙМПАДЫ ПОДДЕРЖИВАЮТСЯ (Gamepad API)", cls: "gray" },
-        { hdr: "ДАННЫЕ" },
+                { hdr: "ДАННЫЕ" },
         { label: "ЭКСПОРТ СОХРАНЕНИЯ В БУФЕР", act: () => this.exportSave() },
         { label: "ИМПОРТ СОХРАНЕНИЯ", act: () => this.importSave() },
         { hdr: "ОБЛАКО (ваш сервер, без сторонних сервисов)" },
