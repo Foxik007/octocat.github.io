@@ -174,7 +174,8 @@ process.on("SIGTERM", () => { DB.saveNow(); process.exit(0); });
 /* ---------------------- КОМНАТЫ МУЛЬТИПЛЕЕРА ---------------------- */
 const rooms = new Map();
 const MAX_PLAYERS = 2;
-const RELAY = new Set(["begin", "in", "snap", "chat", "ping", "pong", "state"]);
+// rematch — просьба гостя перезапустить партию; решение принимает хост
+const RELAY = new Set(["begin", "in", "snap", "chat", "ping", "pong", "state", "rematch"]);
 const DB_MSG = new Set(["auth", "push", "score", "top", "players", "global"]);
 
 const send = (ws, o) => { try { if (ws.readyState === 1) ws.send(JSON.stringify(o)); } catch (e) { } };

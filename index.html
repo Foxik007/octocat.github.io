@@ -2586,13 +2586,29 @@ class Game {
     }
   }
   /* Столкновения пуль с танками и другими пулями */
+  /* Сбивают ли эти двое снаряды друг друга.
+     Условие раньше было «владельцы разной природы» (игрок против ИИ), поэтому
+     в дуэли и «Захвате флага», где оба стрелка — игроки, снаряды спокойно
+     пролетали сквозь друг друга. Теперь как у попаданий по танку: игроки
+     считаются противниками в PvP и CTF, а снаряды двух ИИ, как в оригинале,
+     друг друга не трогают. */
+  bulletsRival(a, b) {
+    if (a.owner === b.owner) return false;                       // свои два снаряда
+    if (a.owner.isPlayer !== b.owner.isPlayer) return true;       // игрок против ИИ
+    return a.owner.isPlayer && (this.pvp || this.mode === "ctf"); // игрок против игрока
+  }
   resolveBullets() {
     for (const b of this.bullets) {
       if (b.dead) continue;
       // Пуля против пули
       for (const b2 of this.bullets) {
-        if (b2 === b || b2.dead || b2.owner.isPlayer === b.owner.isPlayer) continue;
-        if (hit(b, b2)) { b.dead = b2.dead = true; b.owner.bullets--; b2.owner.bullets--; break; }
+        if (b2 === b || b2.dead || !this.bulletsRival(b, b2)) continue;
+        if (hit(b, b2)) {
+          b.dead = b2.dead = true; b.owner.bullets--; b2.owner.bullets--;
+          // Раньше снаряды гасли беззвучно и незаметно — теперь видно, что они сбились
+          this.addExplosion((b.x + b2.x) / 2 - 12, (b.y + b2.y) / 2 - 12, "small");
+          break;
+        }
       }
       if (b.dead) continue;
       for (const t of this.allTanks()) {
@@ -2854,10 +2870,7 @@ class Game {
     text(ctx, "COINS", x, y + 30, 1, "#000");
     text(ctx, String(SAVE.coins), x, y + 42, 1, "#f0c020");
     if (this.mode === "ctf") text(ctx, "CTF " + this.ctfScore[0] + ":" + this.ctfScore[1], x, y + 62, 1, "#000");
-    if (this.net) {
-      text(ctx, this.net.role === "host" ? "HOST" : "GUEST", x, CFG.CH - 40, 1, "#000");
-      text(ctx, "PING " + (MP.ping | 0), x, CFG.CH - 28, 1, MP.ping > 150 ? "#d05050" : "#000");
-    }
+    if (this.net) text(ctx, this.net.role === "host" ? "HOST" : "GUEST", x, CFG.CH - 40, 1, "#000");
   }
   /* Портретная панель: узкая полоса под полем — на телефоне так поле шире
      на треть, чем с боковой панелью. */
@@ -2894,10 +2907,7 @@ class Game {
     ctx.fillStyle = "#a07800"; ctx.fillRect(8, top + 42, 3, 3);
     text(ctx, String(SAVE.coins), 18, top + 40, 1, "#000");
     if (this.mode === "ctf") text(ctx, "CTF " + this.ctfScore[0] + ":" + this.ctfScore[1], 150, top + 40, 1, "#000");
-    if (this.net) {
-      text(ctx, (this.net.role === "host" ? "HOST " : "GUEST ") + (MP.ping | 0) + "MS",
-        CFG.CW - 100, top + 40, 1, MP.ping > 150 ? "#d05050" : "#000");
-    }
+    if (this.net) text(ctx, this.net.role === "host" ? "HOST" : "GUEST", CFG.CW - 100, top + 40, 1, "#000");
   }
 }
 
@@ -3153,6 +3163,9 @@ const MP = {
         this.pushChat(m.from, m.msg, false); toast(m.from + ": " + m.msg, "#5da0f0");
         if (UI.screen === "list" && UI.listKind === "chat") UI.renderList();
         break;
+      case "rematch":                              // гость просит перезапуск — решает хост
+        if (this.isHost()) { toast("Соперник хочет сыграть ещё раз", "#70B050"); this.restartMatch(m.level); }
+        break;
       case "ping": this.send({ t: "pong", ts: m.ts }); break;
       case "pong": this.ping = Math.max(0, now() - m.ts); break;
       case "err":
@@ -3167,6 +3180,26 @@ const MP = {
         this.inGame = false;
         break;
     }
+  },
+  /* Перезапуск партии сразу у обоих. Раньше «ИГРАТЬ СНОВА» перезапускало
+     только у того, кто нажал: второй оставался на экране конца партии, и
+     комната расходилась. Хост объявляет старт тем же сообщением begin, что
+     и при первом запуске; гость просит хоста через rematch. */
+  restartMatch(level) {
+    // Соперника в комнате нет — синхронизировать нечего, пусть перезапустится локально
+    if (!this.connected || !this.room || this.players.length < 2) return false;
+    if (!this.isHost()) {
+      this.send({ t: "rematch", level });
+      toast("Просим хоста перезапустить партию…", "#5da0f0");
+      Log.info("рестарт: запрос отправлен хосту");
+      return true;
+    }
+    const lv = level || 1;
+    this.inGame = true;
+    this.send({ t: "begin", mode: this.mode, level: lv });
+    Log.info("рестарт партии у обоих игроков, уровень " + lv);
+    UI.startGame({ mode: this.mode === "pvp" ? "pvp" : "2p", level: lv, net: { role: "host" } });
+    return true;
   },
   startMatch() {
     const level = 1;
@@ -3198,6 +3231,8 @@ const MP = {
   },
   clearChat() { this.chat.length = 0; saveChat(this.chat); },
   requestRooms() { this.send({ t: "rooms" }); },
+  // Обмен ping/pong оставлен как keepalive: он держит соединение и даёт понять,
+  // что соперник ещё на связи. Само значение пинга на экране больше не выводится.
   pingLoop() {
     if (this._pingTimer) return;
     this._pingTimer = setInterval(() => { if (this.connected && this.room) this.send({ t: "ping", ts: now() }); }, 2000);
@@ -3786,8 +3821,7 @@ const UI = {
       return {
         title: "МУЛЬТИПЛЕЕР", items: items.map(x => Object.assign({ act: () => { } }, x)),
         sub: CFG.MP_SERVER
-          ? `Сервер: ${CFG.MP_SERVER} — <span class="${MP.connected ? "grn" : "red"}">${st}</span>` +
-            (MP.ping ? ` &nbsp; пинг ${MP.ping} мс` : "")
+          ? `Сервер: ${CFG.MP_SERVER} — <span class="${MP.connected ? "grn" : "red"}">${st}</span>`
           : '<span class="red">CFG.MP_SERVER не задан — доступна только локальная игра</span>'
       };
     }
@@ -3870,7 +3904,15 @@ const UI = {
         { label: "УНИЧТОЖЕНО ВРАГОВ", right: g.stats.kills },
         { label: "ЗАРАБОТАНО МОНЕТ", right: "+" + g.coinsEarned + " 🪙", cls: "gold" },
         { hdr: "" },
-        { label: "ИГРАТЬ СНОВА", act: () => this.startGame({ mode: g.mode, level: g.mode === "1p" || g.mode === "2p" ? g.levelIndex : 1 }) },
+        {
+          label: g.net ? "ИГРАТЬ СНОВА (ОБА ИГРОКА)" : "ИГРАТЬ СНОВА",
+          act: () => {
+            // В сетевой партии перезапускаем у обоих, а не только у себя
+            if (g.net && MP.connected && MP.restartMatch(g.levelIndex)) return;
+            if (g.net) toast("Нет связи с соперником", "#d05050");
+            this.startGame({ mode: g.mode, level: g.mode === "1p" || g.mode === "2p" ? g.levelIndex : 1 });
+          }
+        },
         { label: "В МАГАЗИН", act: () => this.openList("shop") },
         { label: "ГЛАВНОЕ МЕНЮ", act: () => this.show("menu") }
       ].map(x => Object.assign({ act: () => { } }, x));
