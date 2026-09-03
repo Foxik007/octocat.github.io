@@ -586,8 +586,8 @@ const TANK_COLORS = {
    D тень, W блик, «.» прозрачно. Спрайт нарисован «вверх», остальные три
    стороны — поворот холста, как и должно быть у танка сверху.            */
 const TANK_ART = {
-  // Игрок: квадратный корпус во всю клетку, маска башни, короткий ствол
-  player: [
+  // Игрок без звёзд: квадратный корпус, маска башни, короткий ствол
+  p0: [
     ".......LL.......",
     "TTT....LL....TTT",
     "TTT....LL....TTT",
@@ -605,6 +605,64 @@ const TANK_ART = {
     "TTTDDDDDDDDDDTTT",
     "................"
   ],
+  // Одна звезда: ствол длиннее, с белым набалдашником
+  p1: [
+    ".......WW.......",
+    ".......LL.......",
+    "TTT....LL....TTT",
+    "TTT....LL....TTT",
+    "TTT...MLLM...TTT",
+    "TTT..WMLLMD..TTT",
+    "TTTWMMMLLMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMLLLLMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTDDDDDDDDDDTTT",
+    "................"
+  ],
+  // Две звезды: два ствола (и два снаряда в воздухе)
+  p2: [
+    "......W..W......",
+    "......L..L......",
+    "TTT...L..L...TTT",
+    "TTT...L..L...TTT",
+    "TTT..MLLLLM..TTT",
+    "TTT.WMLLLLMD.TTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMLLLLMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTWMMMMMMMMDTTT",
+    "TTTDDDDDDDDDDTTT",
+    "................"
+  ],
+  // Три звезды: два ствола и бортовые бронеплиты
+  p3: [
+    "......W..W......",
+    "......L..L......",
+    "TTT...L..L...TTT",
+    "TTT...L..L...TTT",
+    "TTT..MLLLLM..TTT",
+    "TTT.WMLLLLMD.TTT",
+    "TTTWLMMMMMMLDTTT",
+    "TTTWLMMMMMMLDTTT",
+    "TTTWLMLLLLMLDTTT",
+    "TTTWLMMMMMMLDTTT",
+    "TTTWLMMMMMMLDTTT",
+    "TTTWLMMMMMMLDTTT",
+    "TTTWLMMMMMMLDTTT",
+    "TTTWLMMMMMMLDTTT",
+    "TTTDDDDDDDDDDTTT",
+    "................"
+  ],
+
   // Обычный враг: тот же корпус, башня посажена ниже, люк по центру
   basic: [
     ".......LL.......",
@@ -701,41 +759,41 @@ const TANK_ART = {
     "................"
   ]
 };
-/* Рисование танка по спрайту. dir: 0=вверх, 1=вправо, 2=вниз, 3=влево. */
-function drawTank(ctx, x, y, dir, colors, opt = {}) {
-  const s = 2, [m, l, d] = colors;
-  const art = TANK_ART[opt.art] || TANK_ART.player;
-  ctx.save();
-  ctx.translate(x + 16, y + 16); ctx.rotate(dir * Math.PI / 2); ctx.translate(-x - 16, -y - 16);
-  const ph = opt.trackPhase ? 1 : 0;
-  for (let r = 0; r < 16; r++) {
+/* Вывод пиксельной матрицы. colorOf(символ, строка) -> цвет или null.
+   Одинаковые символы подряд склеиваются в одну заливку — это и быстрее,
+   и края остаются ровно на пиксельной сетке. */
+function drawArt(ctx, x, y, art, colorOf, s) {
+  for (let r = 0; r < art.length; r++) {
     const row = art[r];
     let c = 0;
-    while (c < 16) {
+    while (c < row.length) {
       const ch = row[c];
       if (ch === ".") { c++; continue; }
       let n = 1;
-      while (c + n < 16 && row[c + n] === ch) n++;     // склеиваем горизонтальные полосы
-      // Гусеница: полосы сдвигаются на кадр — так видно, что танк едет
-      const col = ch === "T" ? ((r + ph) % 2 ? l : d)
-        : ch === "M" ? m : ch === "L" ? l : ch === "D" ? d : "#f8f8f8";
-      ctx.fillStyle = col;
-      ctx.fillRect(x + c * s, y + r * s, n * s, s);
+      while (c + n < row.length && row[c + n] === ch) n++;
+      const col = colorOf(ch, r);
+      if (col) { ctx.fillStyle = col; ctx.fillRect(x + c * s, y + r * s, n * s, s); }
       c += n;
     }
   }
+}
+/* Рисование танка по спрайту. dir: 0=вверх, 1=вправо, 2=вниз, 3=влево. */
+function drawTank(ctx, x, y, dir, colors, opt = {}) {
+  const s = 2, [m, l, d] = colors;
+  const art = TANK_ART[opt.art] || TANK_ART.p0;
+  ctx.save();
+  ctx.translate(x + 16, y + 16); ctx.rotate(dir * Math.PI / 2); ctx.translate(-x - 16, -y - 16);
+  const ph = opt.trackPhase ? 1 : 0;
+  // Гусеница: полосы сдвигаются на кадр — так видно, что танк едет
+  drawArt(ctx, x, y, art, (ch, r) => ch === "T" ? ((r + ph) % 2 ? l : d)
+    : ch === "M" ? m : ch === "L" ? l : ch === "D" ? d : "#f8f8f8", s);
   // Эмблема-скин на корпусе
   if (opt.skin && opt.skin !== "classic") drawSkin(ctx, x, y, opt.skin, s, opt.skinData);
-  // Полоски «звёзд» (уровень прокачки) на корпусе
-  if (opt.stars) for (let i = 0; i < opt.stars; i++) {
-    ctx.fillStyle = "#ffffff"; ctx.fillRect(x + (4 + i * 3) * s, y + 12 * s, 2 * s, s);
-  }
   ctx.restore();
-  // Щит неуязвимости (мерцающая рамка)
+  // Щит неуязвимости — мерцающее кольцо из пикселей, а не сглаженная обводка
   if (opt.shield) {
-    const c = (Math.floor(now() / 60) % 2) ? "#80d8ff" : "#ffffff";
-    ctx.strokeStyle = c; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, 30, 30);
-    ctx.strokeStyle = "rgba(128,216,255,.4)"; ctx.strokeRect(x - 2, y - 2, 36, 36);
+    const f = Math.floor(now() / 70) % 2;
+    drawArt(ctx, x, y, SHIELD_ART[f], ch => ch === "W" ? "#ffffff" : "#80d8ff", 2);
   }
   // Броня (купленный апгрейд) — уголки
   if (opt.armor > 0) {
@@ -1482,7 +1540,7 @@ class Tank {
   draw(ctx, ox, oy) {
     if (this.spawnTimer > 0) { this.drawSpawn(ctx, ox, oy); return; }
     drawTank(ctx, ox + this.x, oy + this.y, this.dir, this.colors, {
-      art: this.isPlayer ? "player" : this.kind,
+      art: this.isPlayer ? "p" + clamp(this.stars, 0, 3) : this.kind,
       trackPhase: Math.floor(this.trackPhase) % 2, stars: this.isPlayer ? this.stars : 0,
       shield: this.shield > 0, armor: this.armor, skin: this.isPlayer ? SAVE.equipped.skin : null,
       skinData: this.isPlayer ? this.skinData : null
@@ -1491,11 +1549,9 @@ class Tank {
   // Анимация появления (вращающаяся звезда)
   drawSpawn(ctx, ox, oy) {
     const p = Math.floor(this.spawnTimer / 4) % 4;
-    const cx = ox + this.x + 16, cy = oy + this.y + 16;
-    ctx.fillStyle = p % 2 ? "#f8f8f8" : "#5da0f0";
-    const r = [4, 10, 14, 8][p];
-    ctx.fillRect(cx - r, cy - 2, r * 2, 4); ctx.fillRect(cx - 2, cy - r, 4, r * 2);
-    ctx.fillRect(cx - r / 2, cy - r / 2, r, r);
+    const art = SPAWN_ART[[0, 1, 2, 1][p]];
+    const col = p % 2 ? "#f8f8f8" : "#5da0f0";
+    drawArt(ctx, ox + this.x, oy + this.y, art, () => col, 2);
   }
 }
 
@@ -1644,6 +1700,305 @@ class Enemy extends Tank {
   }
 }
 
+/* --- Взрывы и появление: пиксельные кадры вместо «мыльных» прямоугольников ---
+   Раньше взрыв рисовался прямоугольниками с дробным радиусом: края уезжали с
+   пиксельной сетки и на фоне чёткой кирпичной кладки выглядели размытым пятном.
+   Теперь это обычные кадры 16x16, как всё остальное на экране.
+   Символы: W ядро, L огонь, M кромка.                                        */
+const BOOM_ART = [
+  [
+    "................",
+    "................",
+    "......MMMM......",
+    ".....MLLLLM.....",
+    "....MLLWWLLM....",
+    "....MLWWWWLM....",
+    "....MLWWWWLM....",
+    "....MLLWWLLM....",
+    ".....MLLLLM.....",
+    "......MMMM......",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................"
+  ],
+  [
+    "................",
+    "......M..M......",
+    "...M..MLLM..M...",
+    "...MM.MLLM.MM...",
+    "....MMLLLLMM....",
+    "..MMLLWWWWLLMM..",
+    "..MLLWWWWWWLLM..",
+    "..MLWWWWWWWWLM..",
+    "..MLWWWWWWWWLM..",
+    "..MLLWWWWWWLLM..",
+    "..MMLLWWWWLLMM..",
+    "....MMLLLLMM....",
+    "...MM.MLLM.MM...",
+    "...M..MLLM..M...",
+    "......M..M......",
+    "................"
+  ],
+  [
+    "................",
+    "..M..........M..",
+    "...MM......MM...",
+    "....MLM..MLM....",
+    "...MLLM..MLLM...",
+    "..MLL......LLM..",
+    "..ML...WW...LM..",
+    "..ML..WWWW..LM..",
+    "..ML..WWWW..LM..",
+    "..ML...WW...LM..",
+    "..MLL......LLM..",
+    "...MLLM..MLLM...",
+    "....MLM..MLM....",
+    "...MM......MM...",
+    "..M..........M..",
+    "................"
+  ],
+  [
+    "................",
+    ".....MMMMMM.....",
+    "...MMLLLLLLMM...",
+    "..MLLWWWWWWLLM..",
+    "..MLWWWWWWWWLM..",
+    ".MLWWWWWWWWWWLM.",
+    ".MLWWWWWWWWWWLM.",
+    ".MLWWWWWWWWWWLM.",
+    ".MLWWWWWWWWWWLM.",
+    ".MLWWWWWWWWWWLM.",
+    ".MLWWWWWWWWWWLM.",
+    "..MLWWWWWWWWLM..",
+    "..MLLWWWWWWLLM..",
+    "...MMLLLLLLMM...",
+    ".....MMMMMM.....",
+    "................"
+  ],
+  [
+    "................",
+    "..MM........MM..",
+    ".MLLM......MLLM.",
+    ".MLLM..MM..MLLM.",
+    "..MM..MLLM..MM..",
+    "....MMLWWLMM....",
+    "...MLLWWWWLLM...",
+    "...MLWWWWWWLM...",
+    "...MLWWWWWWLM...",
+    "...MLLWWWWLLM...",
+    "....MMLWWLMM....",
+    "..MM..MLLM..MM..",
+    ".MLLM..MM..MLLM.",
+    ".MLLM......MLLM.",
+    "..MM........MM..",
+    "................"
+  ]
+];
+// Мелкий взрыв (попадание) — первые три кадра в клетку 32 px.
+// Взрыв танка — пять кадров, последние три раздуваются на 64 px.
+const BOOM_SMALL = [0, 1, 2], BOOM_SMALL_S = [2, 2, 2];
+const BOOM_BIG = [1, 2, 3, 4], BOOM_BIG_S = [2, 4, 4, 4];
+/* Звезда появления танка: четыре кадра, как в оригинале. */
+const SPAWN_ART = [
+  [
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    ".......LL.......",
+    "......LLLL......",
+    ".....LLLLLL.....",
+    ".....LLLLLL.....",
+    "......LLLL......",
+    ".......LL.......",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................"
+  ],
+  [
+    "................",
+    "................",
+    "................",
+    ".......LL.......",
+    ".......LL.......",
+    "....L..LL..L....",
+    ".....LLLLLL.....",
+    "...LLLLLLLLLL...",
+    "...LLLLLLLLLL...",
+    ".....LLLLLL.....",
+    "....L..LL..L....",
+    ".......LL.......",
+    ".......LL.......",
+    "................",
+    "................",
+    "................"
+  ],
+  [
+    "................",
+    ".......LL.......",
+    ".......LL.......",
+    "..L....LL....L..",
+    "...L...LL...L...",
+    "....L..LL..L....",
+    ".....LLLLLL.....",
+    "LLLLLLLLLLLLLLLL",
+    "LLLLLLLLLLLLLLLL",
+    ".....LLLLLL.....",
+    "....L..LL..L....",
+    "...L...LL...L...",
+    "..L....LL....L..",
+    ".......LL.......",
+    ".......LL.......",
+    "................"
+  ]
+];
+
+/* --- Иконки бонусов: рамка и рисунок одной матрицей 16x16 ---
+   K чёрный фон, W белая рамка, C цвет бонуса, H блик, S тень. */
+const POWERUP_ART = {
+  star: [
+    "KKKKKKKKKKKKKKKK",
+    "KWWWWWWWWWWWWWWK",
+    "KWKKKKKKKKKKKKWK",
+    "KWKKKKKCCKKKKKWK",
+    "KWKKKKKCCKKKKKWK",
+    "KWKKKKCCCCKKKKWK",
+    "KWKCCCCCCCCCCKWK",
+    "KWKCCCCCCCCCCKWK",
+    "KWKKCCCCCCCCKKWK",
+    "KWKKKCCCCCCKKKWK",
+    "KWKKCCCCCCCCKKWK",
+    "KWKCCCKKKKCCCKWK",
+    "KWKCCKKKKKKCCKWK",
+    "KWKKKKKKKKKKKKWK",
+    "KWWWWWWWWWWWWWWK",
+    "KKKKKKKKKKKKKKKK"
+  ],
+  shield: [
+    "KKKKKKKKKKKKKKKK",
+    "KWWWWWWWWWWWWWWK",
+    "KWKKKKKKKKKKKKWK",
+    "KWKKKKCCCCKKKKWK",
+    "KWKKKCCCCCCKKKWK",
+    "KWKKCCHHCCCCKKWK",
+    "KWKCCCHHCCCCCKWK",
+    "KWKCCCCCCCCCCKWK",
+    "KWKCCCCCCCCCCKWK",
+    "KWKCCCCCCCCCCKWK",
+    "KWKKKKKKKKKKKKWK",
+    "KWKCCCCCCCCCCKWK",
+    "KWKKCCCCCCCCKKWK",
+    "KWKKKKKKKKKKKKWK",
+    "KWWWWWWWWWWWWWWK",
+    "KKKKKKKKKKKKKKKK"
+  ],
+  tank: [
+    "KKKKKKKKKKKKKKKK",
+    "KWWWWWWWWWWWWWWK",
+    "KWKKKKKKKKKKKKWK",
+    "KWKKKKKCCKKKKKWK",
+    "KWKKKKKCCKKKKKWK",
+    "KWKCCKCCCCKCCKWK",
+    "KWKCCKCCCCKCCKWK",
+    "KWKCCCCCCCCCCKWK",
+    "KWKCCCCCCCCCCKWK",
+    "KWKCCKCCCCKCCKWK",
+    "KWKCCKCCCCKCCKWK",
+    "KWKCCKKKKKKCCKWK",
+    "KWKKKKKKKKKKKKWK",
+    "KWKKKKKKKKKKKKWK",
+    "KWWWWWWWWWWWWWWK",
+    "KKKKKKKKKKKKKKKK"
+  ],
+  shovel: [
+    "KKKKKKKKKKKKKKKK",
+    "KWWWWWWWWWWWWWWK",
+    "KWKKKKKKKKKKKKWK",
+    "KWKKKKCCCCKKKKWK",
+    "KWKKKKCKKCKKKKWK",
+    "KWKKKKKCCKKKKKWK",
+    "KWKKKKKCCKKKKKWK",
+    "KWKKKKKCCKKKKKWK",
+    "KWKKKKCCCCKKKKWK",
+    "KWKKKCCCCCCKKKWK",
+    "KWKKCCCCCCCCKKWK",
+    "KWKKCCCCCCCCKKWK",
+    "KWKKKCCCCCCKKKWK",
+    "KWKKKKKKKKKKKKWK",
+    "KWWWWWWWWWWWWWWK",
+    "KKKKKKKKKKKKKKKK"
+  ],
+  coin: [
+    "KKKKKKKKKKKKKKKK",
+    "KWWWWWWWWWWWWWWK",
+    "KWKKKKKKKKKKKKWK",
+    "KWKKKCCCCCCKKKWK",
+    "KWKKCCHHHHCCKKWK",
+    "KWKCCHHSSHHCCKWK",
+    "KWKCCHSSSSHCCKWK",
+    "KWKCCHSSSSHCCKWK",
+    "KWKCCHSSSSHCCKWK",
+    "KWKCCHSSSSHCCKWK",
+    "KWKCCHHSSHHCCKWK",
+    "KWKKCCHHHHCCKKWK",
+    "KWKKKCCCCCCKKKWK",
+    "KWKKKKKKKKKKKKWK",
+    "KWWWWWWWWWWWWWWK",
+    "KKKKKKKKKKKKKKKK"
+  ]
+};
+const POWERUP_COL = {
+  star: "#f0c020", shield: "#5da0f0", tank: "#70B050", shovel: "#C09848", coin: "#f0c020"
+};
+
+/* --- Щит неуязвимости: два кадра «энергетического кольца» ---
+   Ячейки рамки зажигаются в шахматном порядке и меняются местами каждые
+   несколько кадров — получается мерцание, а не статичная обводка. */
+const SHIELD_ART = [
+  [
+    "WLW.W.W.W.W.W.W.",
+    "L.L.L.L.L.L.L.LW",
+    "WL..............",
+    "..............LW",
+    "WL..............",
+    "..............LW",
+    "WL..............",
+    "..............LW",
+    "WL..............",
+    "..............LW",
+    "WL..............",
+    "..............LW",
+    "WL..............",
+    "..............LW",
+    "WL.L.L.L.L.L.L.L",
+    ".W.W.W.W.W.W.WLW"
+  ],
+  [
+    ".W.W.W.W.W.W.WLW",
+    "WL.L.L.L.L.L.L.L",
+    "..............LW",
+    "WL..............",
+    "..............LW",
+    "WL..............",
+    "..............LW",
+    "WL..............",
+    "..............LW",
+    "WL..............",
+    "..............LW",
+    "WL..............",
+    "..............LW",
+    "WL..............",
+    "L.L.L.L.L.L.L.LW",
+    "WLW.W.W.W.W.W.W."
+  ]
+];
+
 /* --- Бонус --- */
 const POWERUP_TYPES = ["star", "tank", "shield", "shovel", "coin"];
 class PowerUp {
@@ -1651,15 +2006,9 @@ class PowerUp {
   update() { if (--this.life <= 0) this.dead = true; }
   draw(ctx, ox, oy) {
     if (Math.floor(this.life / 8) % 2 === 0 && this.life < 180) return;   // мигание перед исчезновением
-    const x = ox + this.x, y = oy + this.y, s = 2;
-    const px = (a, b, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x + a * s, y + b * s, w * s, h * s); };
-    px(0, 0, 16, 16, "#000"); px(1, 1, 14, 14, "#f8f8f8"); px(2, 2, 12, 12, "#000");
-    const t = this.type;
-    if (t === "star") { px(7, 3, 2, 3, "#f0c020"); px(4, 6, 8, 2, "#f0c020"); px(5, 8, 6, 4, "#f0c020"); px(4, 12, 3, 1, "#f0c020"); px(9, 12, 3, 1, "#f0c020"); }
-    else if (t === "tank") { px(4, 5, 8, 6, "#70B050"); px(3, 5, 1, 6, "#70B050"); px(12, 5, 1, 6, "#70B050"); px(7, 2, 2, 4, "#70B050"); }
-    else if (t === "shield") { px(4, 3, 8, 6, "#5da0f0"); px(5, 9, 6, 2, "#5da0f0"); px(7, 11, 2, 2, "#5da0f0"); }
-    else if (t === "shovel") { px(7, 2, 2, 7, "#C09848"); px(5, 9, 6, 4, "#C09848"); }
-    else if (t === "coin") { px(4, 3, 8, 10, "#f0c020"); px(6, 5, 4, 6, "#a07800"); px(5, 4, 1, 8, "#fff090"); }
+    const c = POWERUP_COL[this.type] || "#f0c020";
+    const pal = { K: "#000000", W: "#f8f8f8", C: c, H: "#fff090", S: "#a07800" };
+    drawArt(ctx, ox + this.x, oy + this.y, POWERUP_ART[this.type] || POWERUP_ART.star, ch => pal[ch], 2);
   }
 }
 
@@ -1667,21 +2016,19 @@ class PowerUp {
 class Explosion {
   constructor(x, y, big, colorful) {
     this.x = x; this.y = y; this.big = big; this.frame = 0; this.dead = false;
-    this.colorful = colorful;
+    this.frames = big ? BOOM_BIG : BOOM_SMALL;
+    this.scales = big ? BOOM_BIG_S : BOOM_SMALL_S;
     this.tint = colorful ? pick(["#ff40ff", "#40ffff", "#ffff40", "#40ff40", "#ff8040"]) : null;
   }
-  update() { this.frame += 0.35; if (this.frame >= 6) this.dead = true; }
+  update() { this.frame += 0.25; if (this.frame >= this.frames.length) this.dead = true; }
   draw(ctx, ox, oy) {
-    const f = Math.floor(this.frame), x = ox + this.x, y = oy + this.y;
-    const sizes = [8, 14, 20, 26, 20, 12];
-    const r = sizes[clamp(f, 0, 5)] * (this.big ? 1.6 : 1);
-    const cx = x + 16, cy = y + 16;
-    const c1 = this.tint || "#f0c020", c2 = this.tint || "#e05010", c3 = "#f8f8f8";
-    ctx.fillStyle = c2; ctx.fillRect(cx - r / 2, cy - r / 2, r, r);
-    ctx.fillStyle = c1; ctx.fillRect(cx - r / 3, cy - r / 2.2, r / 1.5, r / 1.1);
-    if (f < 3) { ctx.fillStyle = c3; ctx.fillRect(cx - r / 6, cy - r / 6, r / 3, r / 3); }
-    // «Осколки» на последних кадрах
-    if (f >= 3) { ctx.fillStyle = c2; for (let i = 0; i < 4; i++) ctx.fillRect(cx + Math.cos(i * 1.6) * r, cy + Math.sin(i * 1.6) * r, 3, 3); }
+    const f = clamp(Math.floor(this.frame), 0, this.frames.length - 1);
+    const art = BOOM_ART[this.frames[f]], s = this.scales[f];
+    // Кадр всегда 16 «пикселей», поэтому при масштабе 4 он вылезает за клетку —
+    // центрируем его на танке, а не на левом верхнем углу.
+    const off = (16 * s - 32) / 2;
+    const pal = { W: "#f8f8f8", L: this.tint || "#f0c020", M: this.tint || "#e05010" };
+    drawArt(ctx, ox + this.x - off, oy + this.y - off, art, ch => pal[ch], s);
   }
 }
 
@@ -2929,10 +3276,15 @@ const UI = {
   editorData: null, editorTool: "B",
 
   /* --- Переключение экранов --- */
+  menuSel: 0,                    // где стоял курсор, когда уходили из главного меню
   show(name) {
+    // Запоминаем строку меню, из которой уходим, и возвращаем курсор на неё при
+    // возврате. Раньше курсор был общий на все экраны: «назад» из достижений
+    // ставило его туда, где он остался в списке достижений, то есть в начало.
+    if (this.screen === "menu" && name !== "menu") this.menuSel = this.sel;
     $$(".overlay").forEach(o => o.classList.remove("on"));
     this.screen = name;
-    if (name === "menu") { $("#scr-menu").classList.add("on"); this.drawLogo(); this.buildMenu(); }
+    if (name === "menu") { this.sel = this.menuSel; $("#scr-menu").classList.add("on"); this.drawLogo(); this.buildMenu(); }
     else if (name === "list") { $("#scr-list").classList.add("on"); this.renderList(); }
     else if (name === "editor") { $("#scr-editor").classList.add("on"); this.buildEditor(); }
     // name === "game" — оверлеи скрыты, виден холст
@@ -3004,8 +3356,9 @@ const UI = {
   },
   /* --- Универсальный списочный экран --- */
   openList(kind, tab) {
-    this.listKind = kind; this.tab = tab || 0; this.sel = 0;
-    this.show("list");
+    this.listKind = kind; this.tab = tab || 0;
+    this.show("list");           // сначала переход — он запомнит позицию в меню
+    this.sel = 0; this.renderList();
   },
   renderList() {
     const L = this.buildListData(this.listKind);
