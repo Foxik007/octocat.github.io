@@ -592,7 +592,9 @@ const TANK_COLORS = {
   blue: ["#4060D0", "#80a0ff", "#203080"], green: [PAL.green, PAL.greenL, PAL.greenD],
   black: [PAL.black, PAL.blackL, "#101010"], purple: [PAL.purple, PAL.purpleL, "#502070"],
   orange: [PAL.orange, PAL.orangeL, "#803808"], white: [PAL.white, "#ffffff", PAL.whiteD],
-  gold: [PAL.gold, PAL.goldL, PAL.goldD],
+  // Золотой почти совпадал с базовым жёлтым (#C09848 против #F0C020) — в магазине
+  // они выглядели одинаково. Даём насыщенный корпус, почти белый блик и тёмную тень.
+  gold: ["#FFC800", "#FFFAD0", "#6B4A00"],
   // Цвета врагов
   // Обычный враг был жёлтым — тем же цветом, что и танк игрока по умолчанию,
   // и в бою свой танк путался с чужим. На Денди враги серые, игрок жёлтый.
@@ -830,26 +832,46 @@ function drawTank(ctx, x, y, dir, colors, opt = {}) {
   }
 }
 // Эмблемы (скины) 6x6 в центре корпуса
-/* Эмблемы 8x8 на корпусе. Были 6x6 одним цветом — на танке это читалось как
-   бесформенное пятно. Теперь крупнее и с тёмной подложкой на пиксель ниже:
-   контур отделяет рисунок от корпуса, и эмблема видна на любом цвете танка. */
+/* Эмблемы 8x8 на корпусе. Были одноцветными — на танке любая из них читалась
+   как белое пятно, особенно пламя. Теперь у каждой своя палитра: символ в
+   матрице = цвет. Плюс тёмная подложка на пиксель ниже, чтобы рисунок
+   отделялся от корпуса на любом цвете танка. */
 const SKIN_ART = {
-  star: ["...##...", "...##...", "..####..", "########", ".######.", "..####..", ".##..##.", "##....##"],
-  bolt: ["....###.", "...###..", "..###...", ".######.", "..####..", "..###...", ".###....", "###....."],
-  skull: ["..####..", ".######.", "##.##.##", "##.##.##", "########", ".##..##.", ".######.", "..#..#.."],
-  flame: ["...#....", "..##....", ".###.#..", ".######.", "########", "########", ".######.", "..####.."],
-  dragon: ["#......#", "##....##", "###..###", "########", ".######.", "..####..", "...##...", "..#..#.."],
-  flag: ["#######.", "#######.", "#######.", "#######.", "#.......", "#.......", "#.......", "#......."]
+  // Звезда: белое ядро и золотая кайма — видна на танке любого цвета
+  star: { art: ["...gg...", "...ww...", "..gwwg..", "gwwwwwwg", ".gwwwwg.", "..gwwg..", ".gg..gg.", "gg....gg"], pal: { g: "#e0a800", w: "#ffffff" } },
+  // Молния: жёлтая с белым сколом
+  bolt: { art: ["....yy..", "...yy...", "..yy....", ".yyyyy..", "..llyy..", "..yy....", ".yy.....", "yy......"], pal: { y: "#f8d020", l: "#ffffff" } },
+  // Череп: кость и тёмные глазницы
+  skull: { art: ["..wwww..", ".wwwwww.", "wddwwddw", "wddwwddw", "wwwwwwww", ".wwddww.", ".wwwwww.", "..w..w.."], pal: { w: "#f0f0f0", d: "#202020" } },
+  // Пламя: три цвета от края к ядру
+  flame: { art: ["...y....", "..oy.o..", ".royyoo.", ".royyyo.", "roryyyor", "roryyyor", ".royyyo.", "..roor.."], pal: { r: "#8a2010", o: "#e05010", y: "#ffd020" } },
+  // Дракон: голова с красными глазами, распахнутые крылья, хвост
+  dragon: { art: ["d......d", "dg.ee.gd", "dggeeggd", "dggggggd", ".dggggd.", "..dggd..", "..dggd..", "...dd..."], pal: { d: "#14361a", g: "#5cc04a", e: "#ff3020" } }
 };
+/* Флаг — три полосы и древко. По умолчанию российский: белый, синий, красный. */
+const FLAG_ART = ["paaaaaa.", "paaaaaa.", "pbbbbbb.", "pbbbbbb.", "pcccccc.", "pcccccc.", "p.......", "p......."];
 function drawSkin(ctx, x, y, skin, s, data) {
-  const art = skin === "custom" ? (data || SKIN_ART.star) : (SKIN_ART[skin] || SKIN_ART.star);
-  const col = skin === "flag" ? (data || "#e04040") : "#ffffff";
+  let art, pal;
+  if (skin === "custom") {
+    art = (data && data.length) ? data : SKIN_ART.star.art;
+    pal = { "#": "#ffffff" };
+  } else if (skin === "flag") {
+    const b = (data && data.length === 3) ? data : ["#ffffff", "#0039A6", "#D52B1E"];
+    art = FLAG_ART;
+    pal = { p: "#8a6a28", a: b[0], b: b[1], c: b[2] };
+  } else {
+    const e = SKIN_ART[skin] || SKIN_ART.star;
+    art = e.art; pal = e.pal;
+  }
   const n = art.length, w = art[0].length;
   const ox = x + (8 - w / 2) * s, oy = y + 6 * s;            // ровно по центру корпуса
-  for (const [dx, dy, c] of [[1, 1, "rgba(0,0,0,.55)"], [0, 0, col]]) {
-    ctx.fillStyle = c;
-    for (let r = 0; r < n; r++) for (let cc = 0; cc < w; cc++)
-      if (art[r] && art[r][cc] === "#") ctx.fillRect(ox + (cc + dx) * s, oy + (r + dy) * s, s, s);
+  // тень на пиксель вниз-вправо, затем сам рисунок
+  ctx.fillStyle = "rgba(0,0,0,.55)";
+  for (let r = 0; r < n; r++) for (let c = 0; c < w; c++)
+    if (art[r][c] !== ".") ctx.fillRect(ox + (c + 1) * s, oy + (r + 1) * s, s, s);
+  for (let r = 0; r < n; r++) for (let c = 0; c < w; c++) {
+    const col = pal[art[r][c]];
+    if (col) { ctx.fillStyle = col; ctx.fillRect(ox + c * s, oy + r * s, s, s); }
   }
 }
 /* ============================== 6. СОХРАНЕНИЕ / ПРОФИЛЬ (localStorage) ============================== */
@@ -945,12 +967,19 @@ const SHOP = {
     { id: "boom", name: "РАЗНОЦВЕТНЫЕ ВЗРЫВЫ", price: 500 }
   ]
 };
+/* Флаги: три полосы сверху вниз. Раньше у страны был один цвет, и «флаг» на
+   танке выглядел просто цветным прямоугольником. */
 const FLAGS = [
-  { id: "ru", name: "РОССИЯ", c: "#e04040" }, { id: "us", name: "США", c: "#3050c8" },
-  { id: "jp", name: "ЯПОНИЯ", c: "#f04040" }, { id: "de", name: "ГЕРМАНИЯ", c: "#f0c020" },
-  { id: "fr", name: "ФРАНЦИЯ", c: "#4060d0" }, { id: "gb", name: "БРИТАНИЯ", c: "#c03030" },
-  { id: "br", name: "БРАЗИЛИЯ", c: "#40c040" }, { id: "kz", name: "КАЗАХСТАН", c: "#40c0e0" },
-  { id: "ua", name: "УКРАИНА", c: "#f0d030" }, { id: "cn", name: "КИТАЙ", c: "#e03030" }
+  { id: "ru", name: "РОССИЯ",    bands: ["#ffffff", "#0039A6", "#D52B1E"] },
+  { id: "us", name: "США",       bands: ["#B22234", "#ffffff", "#3C3B6E"] },
+  { id: "jp", name: "ЯПОНИЯ",    bands: ["#ffffff", "#BC002D", "#ffffff"] },
+  { id: "de", name: "ГЕРМАНИЯ",  bands: ["#000000", "#DD0000", "#FFCE00"] },
+  { id: "fr", name: "ФРАНЦИЯ",   bands: ["#0055A4", "#ffffff", "#EF4135"] },
+  { id: "gb", name: "БРИТАНИЯ",  bands: ["#012169", "#ffffff", "#C8102E"] },
+  { id: "br", name: "БРАЗИЛИЯ",  bands: ["#009C3B", "#FFDF00", "#002776"] },
+  { id: "kz", name: "КАЗАХСТАН", bands: ["#00AFCA", "#FEC50C", "#00AFCA"] },
+  { id: "ua", name: "УКРАИНА",   bands: ["#0057B7", "#0057B7", "#FFD700"] },
+  { id: "cn", name: "КИТАЙ",     bands: ["#EE1C25", "#FFFF00", "#EE1C25"] }
 ];
 // Куплен ли товар (с учётом премиума и бесплатных стартовых)
 function isOwned(cat, item) {
@@ -965,10 +994,15 @@ function buy(cat, item) {
   if (isOwned(cat, item)) return false;
   if (isLocked(item)) { toast("ЗАБЛОКИРОВАНО: нужен уровень " + item.lvl, "#d05050"); Audio_.hitWall(); return false; }
   if (item.price < 0) { toast("Доступно только по подписке", "#d05050"); return false; }
-  if (SAVE.coins < item.price) { toast("НЕ ХВАТАЕТ МОНЕТ", "#d05050"); Audio_.hitWall(); return false; }
+  if (SAVE.coins < item.price) {
+    toast("НЕ ХВАТАЕТ МОНЕТ", "#d05050"); Audio_.hitWall();
+    Log.warn("не хватило монет на «" + item.name + "»: нужно " + item.price + ", есть " + SAVE.coins);
+    return false;
+  }
   SAVE.coins -= item.price;
   SAVE.owned[cat] = SAVE.owned[cat] || []; SAVE.owned[cat].push(item.id);
   persist(); Audio_.bonus(); toast("КУПЛЕНО: " + item.name, "#70B050");
+  Log.info("покупка: " + item.name + " за " + item.price + ", остаток " + SAVE.coins);
   Ach.check();
   return true;
 }
@@ -1570,7 +1604,7 @@ class Player extends Tank {
     this.colors = idx === 0 ? TANK_COLORS[SAVE.equipped.color] || TANK_COLORS.yellow : TANK_COLORS.green;
     if (idx === 1) this.colors = TANK_COLORS.green;
     this.skinData = SAVE.equipped.skin === "flag"
-      ? (FLAGS.find(f => f.id === SAVE.equipped.flag) || FLAGS[0]).c
+      ? (FLAGS.find(f => f.id === SAVE.equipped.flag) || FLAGS[0]).bands
       : (SAVE.equipped.skin === "custom" ? SAVE.equipped.custom : null);
     this.trail = [];
   }
@@ -2248,6 +2282,7 @@ class Game {
     this.shovelTimer = 0;
     this.startLevel(this.levelIndex);
     SAVE.stats.games++; persist();
+    Log.info("партия: режим " + this.mode + ", уровень " + this.levelIndex);
     Game.cur = this;
   }
   /* --- Инициализация уровня --- */
@@ -2437,6 +2472,7 @@ class Game {
   fortifyBase(idx) { this.field.fortify(T.STEEL, idx || 0); this.shovelTimer = 20 * 60; this.shovelBase = idx || 0; }
   baseDestroyed(idx, by) {
     idx = idx || 0;
+    Log.warn("база разрушена (уровень " + this.levelIndex + ", волна " + this.wave + ")");
     const b = this.field.bases[idx];
     if (!b || b.dead) return;
     this.field.destroyBase(idx);
@@ -2668,6 +2704,7 @@ class Game {
   }
   /* --- Завершение уровня --- */
   levelComplete() {
+    Log.info("уровень " + this.levelIndex + " пройден, счёт " + this.score);
     this.state = "clear"; this.timer = 100;
     Audio_.engine(false); Audio_.win();
     const dur = now() - this.levelStartTime;
@@ -3261,6 +3298,94 @@ function saveChat(list) {
   try { localStorage.setItem(CHAT_KEY, JSON.stringify(list)); } catch (e) { }
 }
 
+/* ============================== ЖУРНАЛ СОБЫТИЙ ==============================
+   Пишем, что происходило: старт партии, взятие уровня, потеря базы, покупки,
+   связь с сервером и любые ошибки. Раньше единственным следом были всплывающие
+   плашки — если что-то ломалось, разобраться постфактум было нечем.
+   Журнал переживает перезапуск и выгружается в файл из «НАСТРОЙКИ → ЖУРНАЛ». */
+const LOG_KEY = "battlecity_log_v1", LOG_MAX = 400;
+const Log = {
+  lines: (() => { try { const a = JSON.parse(localStorage.getItem(LOG_KEY)); return Array.isArray(a) ? a : []; }
+                  catch (e) { return []; } })(),
+  _save() { try { localStorage.setItem(LOG_KEY, JSON.stringify(this.lines.slice(-LOG_MAX))); } catch (e) { } },
+  push(lvl, msg) {
+    const rec = { t: Date.now(), l: lvl, m: String(msg).slice(0, 200) };
+    this.lines.push(rec);
+    if (this.lines.length > LOG_MAX) this.lines.splice(0, this.lines.length - LOG_MAX);
+    this._save();
+    const tag = "[BC " + lvl + "]";
+    (lvl === "ERR" ? console.error : lvl === "WARN" ? console.warn : console.log)(tag, msg);
+    if (typeof UI !== "undefined" && UI.screen === "list" && UI.listKind === "log") UI.renderList();
+  },
+  info(m) { this.push("INFO", m); },
+  warn(m) { this.push("WARN", m); },
+  error(m) { this.push("ERR", m); },
+  clear() { this.lines.length = 0; this._save(); },
+  text() {
+    return this.lines.map(r => {
+      const d = new Date(r.t);
+      return "[" + d.toLocaleDateString() + " " + ("0" + d.getHours()).slice(-2) + ":" +
+        ("0" + d.getMinutes()).slice(-2) + ":" + ("0" + d.getSeconds()).slice(-2) + "] " + r.l + "  " + r.m;
+    }).join("\n");
+  }
+};
+window.addEventListener("error", e => Log.error(e.message + " @" + (e.lineno || "?")));
+window.addEventListener("unhandledrejection", e => Log.error("promise: " + (e.reason && e.reason.message || e.reason)));
+
+/* ============================== СПИСОК ДОРАБОТОК ==============================
+   Показывается игроку в пункте меню «ЧТО НОВОГО». Новую ревизию добавляем
+   сверху: { v, d, items[] }. */
+const CHANGELOG = [
+  {
+    v: "1.6", d: "магазин и внешний вид",
+    items: [
+      "Магазин переделан на карточки с живым превью: цвет и скин видно на танке, выстрел — летящим снарядом, эффект — своей анимацией.",
+      "Эмблемы скинов стали цветными 8x8 с тёмным контуром. Пламя, дракон, череп и звезда больше не выглядят белым пятном.",
+      "Флаг страны рисуется тремя полосами. Российский — белый, синий, красный.",
+      "Золотой танк заметно отличается от базового жёлтого: насыщенный корпус, светлый блик, тёмная тень.",
+      "Свой рисунок задаётся сеткой 8x8 мышью или пальцем, флаг выбирается плитками. Раньше и то, и другое было текстовым вводом.",
+      "Товары «анимированные гусеницы» и «вспышка на старте» ничего не делали. Первый убран, второй теперь рисует кольцо при появлении.",
+      "Добавлены журнал событий и этот список доработок."
+    ]
+  },
+  {
+    v: "1.5", d: "враги, чат, чистка",
+    items: [
+      "Враги ищут дорогу к базе по кратчайшему маршруту и обходят стены, а не тыкаются в первую преграду. Кирпич на пути пробивают.",
+      "Настойчивость врагов настраивается в CFG: AI_BASE_SHARE и AI_RANDOM.",
+      "Чат мультиплеера сохраняется между запусками, показывается отдельным экраном с разбивкой по дням и выгружается в файл.",
+      "Ежедневные челленджи убраны, бонус за вход остался и начисляется сам.",
+      "Убраны донат, покупка монет за деньги и все улучшения, влияющие на бой: в магазине только внешний вид."
+    ]
+  },
+  {
+    v: "1.4", d: "стрельба и разрушения",
+    items: [
+      "Снаряд выбивает просеку в ширину танка (32 px) — в пробитый проход сразу можно въехать.",
+      "Перезарядки по таймеру нет: следующий выстрел — как только предыдущий снаряд во что-то попал.",
+      "Дальность снаряда больше не ограничена искусственно.",
+      "Кирпич вплотную к краю поля теперь разрушается (на 35-м уровне такие блоки оставались навсегда)."
+    ]
+  },
+  {
+    v: "1.3", d: "графика",
+    items: [
+      "У каждого типа танка свой спрайт: обычный, быстрый, мощный, броневой и босс отличаются силуэтом, а не только цветом.",
+      "Танк игрока меняется от звёзд: длиннее ствол, второй ствол, бронеплиты.",
+      "Взрывы, появление танка, бонусы и щит нарисованы пиксельными кадрами вместо размытых прямоугольников.",
+      "Ночь с затемнением и счётчик FPS убраны."
+    ]
+  },
+  {
+    v: "1.2", d: "появление и столкновения",
+    items: [
+      "Враги появляются в трёх точках сверху по очереди, занятая точка пропускается.",
+      "Танки больше не застревают друг в друге: пересёкшиеся корпуса расталкиваются.",
+      "Бонусы падают чаще и только на клетку, до которой можно доехать."
+    ]
+  }
+];
+
 /* ============================== 17. ЕЖЕДНЕВНЫЙ БОНУС ЗА ВХОД ============================== */
 function dailyBonus() {
   const d = today();
@@ -3336,6 +3461,7 @@ const UI = {
       { label: "СТАТИСТИКА", act: () => this.openList("stats") },
       { label: "СОЗДАТЬ СВОЙ УРОВЕНЬ", act: () => this.show("editor") },
       { label: "МУЛЬТИПЛЕЕР", right: MP.connected ? "ONLINE" : "OFFLINE", act: () => this.openList("mp") },
+      { label: "ЧТО НОВОГО", right: "рев. " + CHANGELOG[0].v, act: () => this.openList("news") },
       { label: "НАСТРОЙКИ", act: () => this.openList("settings") },
       { label: "ПРОДОЛЖИТЬ СОХРАНЁННУЮ ИГРУ", right: SAVE.progress ? "есть" : "нет", act: () => this.loadProgress() }
     ];
@@ -3404,7 +3530,7 @@ const UI = {
       // разглядеть, что покупаешь, было нельзя.
       drawTank(ctx, cx, (H - 32) / 2, 0, TANK_COLORS[colId] || TANK_COLORS.yellow, {
         art: "p1", trackPhase: phase, skin,
-        skinData: skin === "flag" ? ((FLAGS.find(f => f.id === SAVE.equipped.flag) || FLAGS[0]).c)
+        skinData: skin === "flag" ? ((FLAGS.find(f => f.id === SAVE.equipped.flag) || FLAGS[0]).bands)
           : (skin === "custom" ? SAVE.equipped.custom : null)
       });
     } else if (pv.kind === "shot") {
@@ -3692,24 +3818,51 @@ const UI = {
           (MP.connected ? '<span class="grn">на связи</span>' : '<span class="red">офлайн — сообщения не уйдут</span>')
       };
     }
+    if (kind === "news") {
+      const items = [];
+      for (const rel of CHANGELOG) {
+        items.push({ hdr: "РЕВИЗИЯ " + rel.v + " — " + rel.d });
+        for (const line of rel.items) items.push({ label: "• " + line, cls: "gray" });
+      }
+      return {
+        title: "ЧТО НОВОГО", items: items.map(x => Object.assign({ act: () => { } }, x)),
+        sub: "Текущая ревизия: <span class=\"gold\">" + CHANGELOG[0].v + "</span>"
+      };
+    }
+    if (kind === "log") {
+      const items = [];
+      const last = Log.lines.slice(-150);
+      if (!last.length) items.push({ label: "ЖУРНАЛ ПУСТ", cls: "gray" });
+      for (const r of last) {
+        const d = new Date(r.t);
+        items.push({
+          label: r.m, cls: r.l === "ERR" ? "red" : r.l === "WARN" ? "gold" : "gray",
+          right: ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2) + ":" +
+                 ("0" + d.getSeconds()).slice(-2)
+        });
+      }
+      items.push({ hdr: "" });
+      items.push({ label: "СОХРАНИТЬ ЖУРНАЛ В ФАЙЛ", act: () => this.exportLog() });
+      items.push({ label: "ОЧИСТИТЬ ЖУРНАЛ", cls: "gray", act: () => { Log.clear(); this.renderList(); } });
+      const errs = Log.lines.filter(r => r.l === "ERR").length;
+      return {
+        title: "ЖУРНАЛ СОБЫТИЙ", items: items.map(x => Object.assign({ act: () => { } }, x)),
+        sub: Log.lines.length + " записей" + (errs ? ' &nbsp; <span class="red">ошибок: ' + errs + "</span>" : "")
+      };
+    }
     if (kind === "settings") {
       const st = SAVE.settings;
       const items = [
         { label: "ЗВУК", right: st.sound ? "ВКЛ" : "ВЫКЛ", act: () => { st.sound = Audio_.toggle(); persist(); this.renderList(); } },
         { label: "ГОЛОСОВОЕ УПРАВЛЕНИЕ", right: Voice.on ? "ВКЛ" : "ВЫКЛ", act: () => { Voice.toggle(); this.renderList(); } },
         { label: "ИМЯ ИГРОКА: " + SAVE.name, act: () => this.renameProfile() },
-        { label: "АВАТАР: #" + (SAVE.avatar + 1) + " (из 8)", act: () => { SAVE.avatar = (SAVE.avatar + 1) % 8; persist(); this.renderList(); } },
-                { hdr: "ДАННЫЕ" },
-        { label: "ЭКСПОРТ СОХРАНЕНИЯ В БУФЕР", act: () => this.exportSave() },
-        { label: "ИМПОРТ СОХРАНЕНИЯ", act: () => this.importSave() },
-        { hdr: "ОБЛАКО (ваш сервер, без сторонних сервисов)" },
-        { label: "СОСТОЯНИЕ", right: Cloud.status(), cls: Cloud.authed ? "grn" : "gray" },
-        { label: "СОХРАНИТЬ ПРОФИЛЬ В ОБЛАКО СЕЙЧАС", act: () => { Cloud.pushNow(); toast(Cloud.authed ? "Профиль отправлен" : "Нет связи с сервером", Cloud.authed ? "#70B050" : "#d05050"); } },
-        { label: "КОД ПЕРЕНОСА ПРОФИЛЯ НА ДРУГОЕ УСТРОЙСТВО", act: () => this.cloudTransfer() },
-        { label: "ВОЙТИ ПО КОДУ ПЕРЕНОСА", act: () => { const c = prompt("Вставьте код переноса:"); if (c) Cloud.useTransferCode(c); this.renderList(); } },
-        { label: "ПЕРЕПОДКЛЮЧИТЬСЯ", act: () => { Cloud.err = ""; Cloud.connect(); toast("Подключаемся…"); } }
+        { label: "ЧТО НОВОГО", right: "рев. " + CHANGELOG[0].v, act: () => this.openList("news") },
+        {
+          label: "ЖУРНАЛ СОБЫТИЙ", right: Log.lines.length + " зап.",
+          cls: Log.lines.some(r => r.l === "ERR") ? "red" : "", act: () => this.openList("log")
+        },
       ].map(x => Object.assign({ act: () => { } }, x));
-      return { title: "НАСТРОЙКИ", items, sub: "Версия 1.0 — офлайн готов" };
+      return { title: "НАСТРОЙКИ", items, sub: "Ревизия " + CHANGELOG[0].v + " — " + CHANGELOG[0].d };
     }
     if (kind === "gameover") {
       const g = this.lastGame;
@@ -3795,6 +3948,17 @@ const UI = {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
     toast("Переписка сохранена в файл и скопирована в буфер", "#70B050");
   },
+  exportLog() {
+    if (!Log.lines.length) { toast("Журнал пуст"); return; }
+    const text = "BATTLE CITY — журнал событий\n" + "=".repeat(34) + "\n" + Log.text() + "\n";
+    navigator.clipboard?.writeText(text);
+    const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = "battle-city-log.txt";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast("Журнал сохранён в файл", "#70B050");
+  },
   exportSave() {
     const s = btoa(unescape(encodeURIComponent(JSON.stringify(SAVE))));
     navigator.clipboard?.writeText(s);
@@ -3816,7 +3980,7 @@ const UI = {
       <div class="btn" style="border-color:#888;color:#888" onclick="UI.closeModal()">ЗАКРЫТЬ</div>`);
     $("#flagBox").innerHTML = FLAGS.map((f, i) => `
       <div class="card" data-i="${i}" style="padding:4px 2px;gap:3px">
-        <span style="display:block;width:34px;height:22px;background:${f.c};border:1px solid #444"></span>
+        <span style="display:block;width:34px;height:22px;border:1px solid #444;background:linear-gradient(${f.bands[0]} 0 33%,${f.bands[1]} 33% 66%,${f.bands[2]} 66% 100%)"></span>
         <span style="font-size:8px;text-align:center">${esc(f.name)}</span>
       </div>`).join("");
     $("#flagBox").querySelectorAll(".card").forEach(el => {
