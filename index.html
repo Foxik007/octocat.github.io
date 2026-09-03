@@ -3854,9 +3854,7 @@ const UI = {
       const st = SAVE.settings;
       const items = [
         { label: "ЗВУК", right: st.sound ? "ВКЛ" : "ВЫКЛ", act: () => { st.sound = Audio_.toggle(); persist(); this.renderList(); } },
-        { label: "ГОЛОСОВОЕ УПРАВЛЕНИЕ", right: Voice.on ? "ВКЛ" : "ВЫКЛ", act: () => { Voice.toggle(); this.renderList(); } },
         { label: "ИМЯ ИГРОКА: " + SAVE.name, act: () => this.renameProfile() },
-        { label: "ЧТО НОВОГО", right: "рев. " + CHANGELOG[0].v, act: () => this.openList("news") },
         {
           label: "ЖУРНАЛ СОБЫТИЙ", right: Log.lines.length + " зап.",
           cls: Log.lines.some(r => r.l === "ERR") ? "red" : "", act: () => this.openList("log")
